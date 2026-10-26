@@ -46,6 +46,10 @@ results/
 *.snm
 *.vrb
 
+# Tools and Solvers
+tools/
+*.zip
+
 # OS and Editor artifacts
 .DS_Store
 Thumbs.db
