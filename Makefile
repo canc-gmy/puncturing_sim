@@ -2,16 +2,22 @@
 # Python environment: .venv
 
 PYTHON := .venv/Scripts/python.exe
+PDFLATEX := C:/Users/rossi/AppData/Local/Programs/MiKTeX/miktex/bin/x64/pdflatex.exe
 
-.PHONY: all help init analyze phase1 phase2 report clean
+.PHONY: all help init analyze phase1 run-phase1 extract fd-curve validate phase2 run-phase2 report clean
 
 help:
 	@echo "Available commands:"
-	@echo "  make analyze   - Analyze and plot experimental test data"
-	@echo "  make phase1    - Generate OpenCourant input decks for Phase 1 (Homogenized Core)"
-	@echo "  make phase2    - Generate OpenCourant input decks for Phase 2 (Meso-scale Core)"
-	@echo "  make report    - Build LaTeX simulation report PDF"
-	@echo "  make clean     - Clean temporary build artifacts"
+	@echo "  make analyze     - Analyze and plot experimental test data"
+	@echo "  make phase1      - Generate OpenCourant input decks for Phase 1 (Homogenized Core)"
+	@echo "  make run-phase1  - Execute OpenCourant solver for Phase 1"
+	@echo "  make extract     - Convert animations to VTK & export time history CSVs"
+	@echo "  make fd-curve    - Extract Force-Displacement response"
+	@echo "  make validate    - Compare Simulation vs Experimental F-d curve"
+	@echo "  make phase2      - Generate OpenCourant input decks for Phase 2 (Meso-scale Core)"
+	@echo "  make run-phase2  - Execute OpenCourant solver for Phase 2"
+	@echo "  make report      - Build publication-grade LaTeX simulation report PDFs"
+	@echo "  make clean       - Clean temporary build artifacts"
 
 analyze:
 	$(PYTHON) src/validation/plot_experiment.py
@@ -20,13 +26,30 @@ phase1:
 	$(PYTHON) src/preprocessing/generate_model_phase1.py
 
 run-phase1:
-	$(PYTHON) src/preprocessing/run_simulation.py
+	$(PYTHON) src/preprocessing/run_simulation.py phase1
 
 extract:
-	$(PYTHON) src/postprocessing/extract_results.py
+	$(PYTHON) src/postprocessing/extract_results.py phase1
+	$(PYTHON) src/postprocessing/extract_results.py phase2
+
+fd-curve:
+	$(PYTHON) src/postprocessing/extract_fd_curve.py phase1
+	$(PYTHON) src/postprocessing/extract_fd_curve.py phase2
+
+validate:
+	$(PYTHON) src/validation/compare_fd_curves.py
 
 phase2:
 	$(PYTHON) src/preprocessing/generate_model_phase2.py
+
+run-phase2:
+	$(PYTHON) src/preprocessing/run_simulation.py phase2
+
+report:
+	cd docs/reports && $(PDFLATEX) -interaction=nonstopmode --enable-installer phase1_report.tex
+	cd docs/reports && $(PDFLATEX) -interaction=nonstopmode --enable-installer phase2_report.tex
+	cp docs/reports/phase1_report.pdf reports/phase1_report.pdf
+	cp docs/reports/phase2_report.pdf reports/phase2_report.pdf
 
 clean:
 	rm -rf *.tmp build/ *.aux *.log *.out

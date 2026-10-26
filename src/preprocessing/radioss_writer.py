@@ -33,8 +33,10 @@ class RadiossDeck:
         self.parts: dict[int, tuple[str, int, int]] = {}  # part_id -> (name, prop_id, mat_id)
         self.materials: list[str] = []
         self.properties: list[str] = []
+        self.surfaces: list[str] = []
         self.contacts: list[str] = []
         self.bcs: list[str] = []
+        self.time_histories: list[str] = []
 
     def add_node(self, node_id: int, x: float, y: float, z: float) -> int:
         self.nodes[node_id] = Node(node_id, float(x), float(y), float(z))
@@ -90,11 +92,21 @@ class RadiossDeck:
                 for s in shells:
                     f.write(f"{s.id:10d}" + "".join(f"{n:10d}" for n in s.n) + "\n")
 
+            # Surfaces
+            for surf in self.surfaces:
+                f.write(surf + "\n")
+
+            # Contacts / Interfaces
             for contact in self.contacts:
                 f.write(contact + "\n")
 
+            # Boundary Conditions
             for bc in self.bcs:
                 f.write(bc + "\n")
+
+            # Time Histories
+            for th in self.time_histories:
+                f.write(th + "\n")
 
             f.write("/END\n")
 
@@ -115,5 +127,9 @@ class RadiossDeck:
             f.write(f"/TFILE\n")
             f.write(f"{th_dt:16.6f}\n")
             f.write("/DT/NODA/CST\n")
-            f.write("0.900000        1.000000E-07\n")
+            f.write("0.900000        5.000000E-08\n")
+            f.write("/DT/BRICK/DEL\n")
+            f.write("0.900000        4.000000E-08\n")
+            f.write("/DT/SHELL/DEL\n")
+            f.write("0.900000        4.000000E-08\n")
             f.write("/END\n")

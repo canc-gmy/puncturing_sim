@@ -1,7 +1,7 @@
 """
 OpenCourant Simulation Runner
 Sets up the runtime environment (Intel oneAPI, OpenCourant libraries, RAD_CFG_PATH)
-and executes the Starter and Engine solvers for a given model.
+and executes the Starter and Engine solvers for Phase 1 or Phase 2 models.
 """
 
 from pathlib import Path
@@ -36,7 +36,7 @@ def setup_environment(oc_root: Path) -> dict:
     env["PATH"] = ";".join(paths_to_add) + ";" + env.get("PATH", "")
     return env
 
-def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, num_threads: int = 4):
+def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, model_dir: Path = None, num_threads: int = 4):
     oc_root = find_opencourant_root()
     env = setup_environment(oc_root)
     exec_dir = oc_root / "exec"
@@ -46,17 +46,26 @@ def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, n
     if not engine_exe.exists():
         engine_exe = exec_dir / "engine_win64.exe"
 
+    if model_dir is None:
+        if "MESO" in model_prefix.upper():
+            model_dir = BASE_DIR / "models" / "phase2_mesoscale"
+        else:
+            model_dir = BASE_DIR / "models" / "phase1_homogenized"
+
     if run_dir is None:
-        run_dir = BASE_DIR / "results" / "phase1_homogenized"
+        if "MESO" in model_prefix.upper():
+            run_dir = BASE_DIR / "results" / "phase2_mesoscale"
+        else:
+            run_dir = BASE_DIR / "results" / "phase1_homogenized"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    starter_src = BASE_DIR / "models" / "phase1_homogenized" / "starter" / f"{model_prefix}_0000.rad"
-    engine_src = BASE_DIR / "models" / "phase1_homogenized" / "engine" / f"{model_prefix}_0001.rad"
+    starter_src = model_dir / "starter" / f"{model_prefix}_0000.rad"
+    engine_src = model_dir / "engine" / f"{model_prefix}_0001.rad"
 
     starter_dst = run_dir / f"{model_prefix}_0000.rad"
     engine_dst = run_dir / f"{model_prefix}_0001.rad"
 
-    print(f"Copying model decks to run directory: {run_dir}")
+    print(f"Copying model decks from {model_dir} to run directory: {run_dir}")
     shutil.copy2(starter_src, starter_dst)
     shutil.copy2(engine_src, engine_dst)
 
@@ -103,4 +112,8 @@ def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, n
     return True
 
 if __name__ == '__main__':
-    run_simulation()
+    target = sys.argv[1] if len(sys.argv) > 1 else "phase1"
+    if target.lower() == "phase2":
+        run_simulation(model_prefix="PUNCTURE_MESO")
+    else:
+        run_simulation(model_prefix="PUNCTURE_HOMOG")
