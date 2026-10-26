@@ -7,6 +7,7 @@ and converts time history (.h3d / T01) to CSV for automated plotting.
 from pathlib import Path
 import subprocess
 import os
+import sys
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 OC_DIR = BASE_DIR / "tools" / "OpenCourant"
@@ -48,7 +49,6 @@ def convert_results(results_dir: Path, model_prefix: str = "PUNCTURE_HOMOG"):
     # 2. Convert Time History to CSV
     th_converter = exec_dir / "th_to_csv_win64.exe"
     t_files = list(results_dir.glob(f"{model_prefix}T*"))
-    # Filter out already converted csv
     t_files = [tf for tf in t_files if not tf.name.endswith(".csv")]
     if th_converter.exists() and t_files:
         print(f"Found time history file: {t_files[0].name}. Converting to CSV...")
@@ -57,5 +57,8 @@ def convert_results(results_dir: Path, model_prefix: str = "PUNCTURE_HOMOG"):
         print("Time history CSV generated.")
 
 if __name__ == '__main__':
-    default_res = BASE_DIR / "results" / "phase1_homogenized"
-    convert_results(default_res)
+    target = sys.argv[1] if len(sys.argv) > 1 else "phase1"
+    if target.lower() == "phase2":
+        convert_results(BASE_DIR / "results" / "phase2_mesoscale", model_prefix="PUNCTURE_MESO")
+    else:
+        convert_results(BASE_DIR / "results" / "phase1_homogenized", model_prefix="PUNCTURE_HOMOG")

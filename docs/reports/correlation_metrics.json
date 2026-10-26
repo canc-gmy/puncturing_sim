@@ -1,0 +1,18 @@
+{
+  "experimental": {
+    "peak_force_kN": 35.8,
+    "absorbed_energy_J": 225.565
+  },
+  "phase1_homogenized": {
+    "peak_force_kN": 8.8246,
+    "peak_force_error_pct": 75.35027932960894,
+    "absorbed_energy_J": 19.217883425,
+    "energy_error_pct": 91.48011286103784
+  },
+  "phase2_mesoscale": {
+    "peak_force_kN": 0.5827,
+    "peak_force_error_pct": 98.37234636871509,
+    "absorbed_energy_J": 0.5595700000000002,
+    "energy_error_pct": 99.75192516569503
+  }
+}
