@@ -19,6 +19,12 @@ analyze:
 phase1:
 	$(PYTHON) src/preprocessing/generate_model_phase1.py
 
+run-phase1:
+	$(PYTHON) src/preprocessing/run_simulation.py
+
+extract:
+	$(PYTHON) src/postprocessing/extract_results.py
+
 phase2:
 	$(PYTHON) src/preprocessing/generate_model_phase2.py
 

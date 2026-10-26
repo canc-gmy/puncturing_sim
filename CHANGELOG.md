@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Phase 1 homogenized model starter and engine deck generator.
 - Experimental data analysis and visualization script.
 
+## [0.2.0] - 2026-10-26
+### Added
+- Integrated OpenCourant Windows 64-bit solver release (`starter_win64.exe`, `engine_win64_sp.exe`, `anim_to_vtk`, `th_to_csv`).
+- Phase 1 Homogenized 3D explicit finite element model (23,409 nodes, 20,000 solid elements, 120 punch shells).
+- Automated solver runner with Intel oneAPI environment configuration (`src/preprocessing/run_simulation.py`).
+- Completed 160,001 explicit dynamic time-integration cycles ($16.0\text{ ms}$ stroke).
+- Post-processing pipeline converting binary animation files to 3D VTK meshes for ParaView (`src/postprocessing/extract_results.py`).
+- Time-history conversion to CSV and energy balance diagnostics plotting (`src/postprocessing/plot_simulation_energy.py`).
+
 ## [0.1.0] - 2026-10-26
 ### Added
 - Initial project architecture and directory structure.
