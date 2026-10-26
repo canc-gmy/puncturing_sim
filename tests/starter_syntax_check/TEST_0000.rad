@@ -28,4 +28,8 @@ ELASTIC_TEST
 50000.000000000000000.300000000000000000
 /BRICK/1
          1         1         2         3         4         5         6         7         8
+/TH/NODE/1
+TEST_NODE_TH
+DZ
+1
 /END
