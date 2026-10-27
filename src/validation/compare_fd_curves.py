@@ -1,6 +1,9 @@
 """
 Model vs Experiment Correlation Module
-Calculates error metrics (peak force error, stiffness error, absorbed energy error)
+Calculates error metrics:
+- Peak force error (%)
+- Absorbed energy error (%)
+- Sprague-Geers validation metrics: Magnitude error M, Phase error P, Comprehensive error C (ISO / ASME V&V standard)
 and produces publication-quality overlay plots comparing Experiment, Phase 1, and Phase 2.
 """
 
@@ -9,8 +12,44 @@ import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
 from scipy.integrate import trapezoid
+
+def compute_sprague_geers(d_exp: np.ndarray, f_exp: np.ndarray, d_sim: np.ndarray, f_sim: np.ndarray) -> dict:
+    """
+    Computes Sprague-Geers metrics (M, P, C) over the common displacement range.
+    """
+    d_max = min(float(np.max(d_exp)), float(np.max(d_sim)))
+    d_common = np.linspace(0.0, d_max, 500)
+    
+    m = np.interp(d_common, d_exp, f_exp)
+    c = np.interp(d_common, d_sim, f_sim)
+    
+    I_mm = trapezoid(m**2, d_common)
+    I_cc = trapezoid(c**2, d_common)
+    I_mc = trapezoid(m * c, d_common)
+    
+    if I_mm <= 1e-12 or I_cc <= 1e-12:
+        return {
+            "sprague_geers_M_pct": 0.0,
+            "sprague_geers_P_pct": 0.0,
+            "sprague_geers_C_pct": 0.0,
+            "M": 0.0, "P": 0.0, "C": 0.0
+        }
+    
+    M = np.sqrt(I_cc / I_mm) - 1.0
+    denom = np.sqrt(I_mm * I_cc)
+    cos_val = np.clip(I_mc / denom, -1.0, 1.0)
+    P = (1.0 / np.pi) * np.arccos(cos_val)
+    C = np.sqrt(M**2 + P**2)
+    
+    return {
+        "sprague_geers_M_pct": round(float(M * 100.0), 2),
+        "sprague_geers_P_pct": round(float(P * 100.0), 2),
+        "sprague_geers_C_pct": round(float(C * 100.0), 2),
+        "M": round(float(M), 4),
+        "P": round(float(P), 4),
+        "C": round(float(C), 4)
+    }
 
 def evaluate_all(exp_csv: Path, p1_csv: Path = None, p2_csv: Path = None, out_plot: Path = None, out_json: Path = None):
     exp_df = pd.read_csv(exp_csv)
@@ -20,13 +59,13 @@ def evaluate_all(exp_csv: Path, p1_csv: Path = None, p2_csv: Path = None, out_pl
     e_exp = trapezoid(f_exp_n, d_exp * 1e-3)
     peak_exp = np.max(f_exp_kn)
 
-    fig, ax = plt.subplots(figsize=(8.5, 5.5), dpi=300)
-    ax.plot(d_exp, f_exp_kn, color='#1f77b4', linewidth=2.2, label='Experiment (Quasi-Static)')
+    fig, ax = plt.subplots(figsize=(9, 6), dpi=300)
+    ax.plot(d_exp, f_exp_kn, color='#1f77b4', linewidth=2.5, label='Experiment (Target: F_ult=35.8 kN, E=225.6 J)')
 
     metrics = {
         "experimental": {
-            "peak_force_kN": float(peak_exp),
-            "absorbed_energy_J": float(e_exp)
+            "peak_force_kN": round(float(peak_exp), 2),
+            "absorbed_energy_J": round(float(e_exp), 2)
         }
     }
 
@@ -38,12 +77,17 @@ def evaluate_all(exp_csv: Path, p1_csv: Path = None, p2_csv: Path = None, out_pl
         peak1 = np.max(f1_kn)
         err_peak1 = abs(peak1 - peak_exp) / peak_exp * 100.0
         err_e1 = abs(e1 - e_exp) / e_exp * 100.0
-        ax.plot(d1, f1_kn, color='#d62728', linestyle='--', linewidth=2.0, label='OpenCourant: Phase 1 (Homogenized)')
+        
+        sg1 = compute_sprague_geers(d_exp, f_exp_kn, d1, f1_kn)
+        
+        ax.plot(d1, f1_kn, color='#d62728', linestyle='--', linewidth=2.0, 
+                label=f'Phase 1 Homogenized (Peak: {peak1:.1f} kN, C={sg1["sprague_geers_C_pct"]}%)')
         metrics["phase1_homogenized"] = {
-            "peak_force_kN": float(peak1),
-            "peak_force_error_pct": float(err_peak1),
-            "absorbed_energy_J": float(e1),
-            "energy_error_pct": float(err_e1)
+            "peak_force_kN": round(float(peak1), 2),
+            "peak_force_error_pct": round(float(err_peak1), 2),
+            "absorbed_energy_J": round(float(e1), 2),
+            "energy_error_pct": round(float(err_e1), 2),
+            "sprague_geers": sg1
         }
 
     if p2_csv and p2_csv.exists():
@@ -54,20 +98,25 @@ def evaluate_all(exp_csv: Path, p1_csv: Path = None, p2_csv: Path = None, out_pl
         peak2 = np.max(f2_kn)
         err_peak2 = abs(peak2 - peak_exp) / peak_exp * 100.0
         err_e2 = abs(e2 - e_exp) / e_exp * 100.0
-        ax.plot(d2, f2_kn, color='#2ca02c', linestyle='-.', linewidth=2.0, label='OpenCourant: Phase 2 (Meso-Scale Hybrid)')
+        
+        sg2 = compute_sprague_geers(d_exp, f_exp_kn, d2, f2_kn)
+        
+        ax.plot(d2, f2_kn, color='#2ca02c', linestyle='-.', linewidth=2.0, 
+                label=f'Phase 2 Meso-Scale Hybrid (Peak: {peak2:.1f} kN, C={sg2["sprague_geers_C_pct"]}%)')
         metrics["phase2_mesoscale"] = {
-            "peak_force_kN": float(peak2),
-            "peak_force_error_pct": float(err_peak2),
-            "absorbed_energy_J": float(e2),
-            "energy_error_pct": float(err_e2)
+            "peak_force_kN": round(float(peak2), 2),
+            "peak_force_error_pct": round(float(err_peak2), 2),
+            "absorbed_energy_J": round(float(e2), 2),
+            "energy_error_pct": round(float(err_e2), 2),
+            "sprague_geers": sg2
         }
 
     ax.set_xlabel('Indenter Displacement (mm)', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Puncture Force (kN)', fontsize=12, fontweight='bold')
-    ax.set_title('Quasi-Static Puncture: Experimental vs OpenCourant Finite Element Models\nCFRP / Aluminium Honeycomb Sandwich Panel (⌀25 mm Punch, ⌀30 mm Aperture)',
+    ax.set_ylabel('Puncture Reaction Force (kN)', fontsize=12, fontweight='bold')
+    ax.set_title('Quasi-Static Sandwich Puncture: Experimental vs OpenCourant High-Fidelity FEA\nCFRP / Aluminium Honeycomb Panel (⌀25 mm Punch, ⌀30 mm Support Aperture)',
                  fontsize=11, fontweight='bold', pad=12)
     ax.grid(True, linestyle='--', alpha=0.6)
-    ax.legend(loc='upper left', frameon=True, facecolor='white', framealpha=0.9)
+    ax.legend(loc='upper left', frameon=True, facecolor='white', framealpha=0.9, fontsize=10)
 
     plt.tight_layout()
     if out_plot:

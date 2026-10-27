@@ -33,6 +33,7 @@ class RadiossDeck:
         self.parts: dict[int, tuple[str, int, int]] = {}  # part_id -> (name, prop_id, mat_id)
         self.materials: list[str] = []
         self.properties: list[str] = []
+        self.node_groups: list[str] = []
         self.surfaces: list[str] = []
         self.contacts: list[str] = []
         self.bcs: list[str] = []
@@ -64,7 +65,7 @@ class RadiossDeck:
             f.write("/NODE\n")
             for nid in sorted(self.nodes.keys()):
                 node = self.nodes[nid]
-                f.write(f"{node.id:10d}{node.x:16.6f}{node.y:16.6f}{node.z:16.6f}\n")
+                f.write(f"{node.id:10d}{node.x:20.6f}{node.y:20.6f}{node.z:20.6f}\n")
 
             # Parts
             for part_id, (name, prop_id, mat_id) in self.parts.items():
@@ -91,6 +92,10 @@ class RadiossDeck:
                 f.write(f"/SHELL/{part_id}\n")
                 for s in shells:
                     f.write(f"{s.id:10d}" + "".join(f"{n:10d}" for n in s.n) + "\n")
+
+            # Node Groups
+            for grnod in self.node_groups:
+                f.write(grnod + "\n")
 
             # Surfaces
             for surf in self.surfaces:
@@ -127,9 +132,9 @@ class RadiossDeck:
             f.write(f"/TFILE\n")
             f.write(f"{th_dt:16.6f}\n")
             f.write("/DT/NODA/CST\n")
-            f.write("0.900000        5.000000E-08\n")
+            f.write("0.900000        2.500000E-08\n")
             f.write("/DT/BRICK/DEL\n")
-            f.write("0.900000        4.000000E-08\n")
+            f.write("0.900000        1.000000E-08\n")
             f.write("/DT/SHELL/DEL\n")
-            f.write("0.900000        4.000000E-08\n")
+            f.write("0.900000        1.000000E-08\n")
             f.write("/END\n")
