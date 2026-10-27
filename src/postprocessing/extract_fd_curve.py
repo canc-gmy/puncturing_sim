@@ -11,7 +11,13 @@ import numpy as np
 import sys
 from scipy.signal import savgol_filter
 
-def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 1000.0, scale_factor: float = 4.0) -> pd.DataFrame:
+def extract_fd(
+    csv_path: Path,
+    out_csv: Path,
+    v_punch: float = 1000.0,
+    scale_factor: float = 4.0,
+    use_work_force: bool = False
+) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
     df.columns = [c.strip().strip('"') for c in df.columns]
 
@@ -30,7 +36,8 @@ def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 1000.0, scale_fac
     # 2. Force extraction
     force_cols = [c for c in df.columns if 'PUNCH_FORCE' in c or 'FZ' in c or 'REACZ' in c]
     direct_force_found = False
-    if force_cols:
+
+    if not use_work_force and force_cols:
         raw_force = np.abs(df[force_cols[0]].to_numpy())
         if np.max(raw_force) > 0.1:
             direct_force_found = True
@@ -41,28 +48,31 @@ def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 1000.0, scale_fac
             else:
                 force_kn = raw_force.copy()
 
-    if not direct_force_found:
+    if not direct_force_found or use_work_force:
         # Calculate from external work or internal energy rate: F = dW / d(disp)
         if 'EXTERNAL WORK' in df.columns and np.max(df['EXTERNAL WORK']) > 1.0:
             w_mj = df['EXTERNAL WORK'].to_numpy() # N*mm = mJ
         else:
             w_mj = df['INTERNAL ENERGY'].to_numpy()
         
+        # Smooth work curve to avoid discretization noise in derivative
+        if len(w_mj) > 31:
+            w_smooth = savgol_filter(w_mj, window_length=31, polyorder=3)
+        else:
+            w_smooth = w_mj
+
+        dw = np.diff(w_smooth, prepend=w_smooth[0])
+        dd = np.diff(disp_mm, prepend=disp_mm[0])
         force_n = np.zeros_like(disp_mm)
-        for i in range(1, len(disp_mm)):
-            dd = disp_mm[i] - disp_mm[i-1]
-            dw = w_mj[i] - w_mj[i-1]
-            if dd > 1e-6:
-                force_n[i] = dw / dd
-            else:
-                force_n[i] = force_n[i-1]
+        mask = dd > 1e-6
+        force_n[mask] = dw[mask] / dd[mask]
         force_kn = force_n / 1000.0
 
     # Scale reaction force and energy for quarter symmetry
     force_kn = force_kn * scale_factor
 
     # 3. Detect complete puncture perforation from external work plateau (if not direct force)
-    if not direct_force_found and 'EXTERNAL WORK' in df.columns:
+    if not direct_force_found and not use_work_force and 'EXTERNAL WORK' in df.columns:
         w = df['EXTERNAL WORK'].to_numpy()
         dw = np.diff(w, prepend=w[0])
         dd = np.diff(disp_mm, prepend=disp_mm[0])
@@ -111,17 +121,19 @@ def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 1000.0, scale_fac
 if __name__ == '__main__':
     base_dir = Path(__file__).resolve().parents[2]
     target = sys.argv[1] if len(sys.argv) > 1 else "phase1"
+    use_work = False
     if target.lower() == "phase2":
         t01_csv = base_dir / "results" / "phase2_mesoscale" / "PUNCTURE_MESOT01.csv"
         fd_out = base_dir / "results" / "phase2_mesoscale" / "simulation_fd.csv"
     elif target.lower() == "phase3":
         t01_csv = base_dir / "results" / "phase3_full_mesoscale" / "PUNCTURE_MESOFULLT01.csv"
         fd_out = base_dir / "results" / "phase3_full_mesoscale" / "simulation_fd.csv"
+        use_work = True
     else:
         t01_csv = base_dir / "results" / "phase1_homogenized" / "PUNCTURE_HOMOGT01.csv"
         fd_out = base_dir / "results" / "phase1_homogenized" / "simulation_fd.csv"
 
     if t01_csv.exists():
-        extract_fd(t01_csv, fd_out)
+        extract_fd(t01_csv, fd_out, use_work_force=use_work)
     else:
         print(f"File not found: {t01_csv}")

@@ -45,8 +45,8 @@ def build_phase3_deck(
     cell_size: float = 3.175, # 1/8 inch
     punch_dia: float = 25.0,
     aperture_dia: float = 30.0,
-    v_punch: float = 1000.0,  # mm/s = 1.0 m/s explicit rapid calibration
-    t_end: float = 0.0162,    # 16.2 ms -> 16.2 mm displacement at 1000 mm/s
+    v_punch: float = 400.0,   # mm/s = 0.4 m/s calibrated quasi-static velocity
+    t_end: float = 0.0405,    # 40.5 ms -> 16.2 mm displacement at 400 mm/s
     nc_inplane: int = 8,
     z_offset: float = 0.050,  # mm physical clearance to prevent initial penetration
 ) -> tuple[RadiossDeck, dict]:
@@ -177,7 +177,7 @@ def build_phase3_deck(
     # 6. Generate Cylindrical Punch Rigid Shells (Part 4)
     punch_nodes = []
     punch_node_map_2d = {}
-    z_punch_face = z_top_max + 0.20 # 0.20 mm initial clearance
+    z_punch_face = z_top_max + 0.02 # 0.02 mm tangent clearance (no free-flight dynamic impact)
 
     punch_master_node_id = node_id
     deck.add_node(punch_master_node_id, 0.0, 0.0, z_punch_face + 5.0)
@@ -292,13 +292,13 @@ CFRP_T700_TWILL
             1.000000         1.00000E-06         1         1            0.000000"""
     )
 
-    # Mat 21: Aluminium 5052 Foil (Calibrated Johnson-Cook Plasticity /MAT/LAW2)
+    # Mat 21: Aluminium 5052 Foil (Calibrated Johnson-Cook Plasticity /MAT/LAW2, Ductile Folding)
     deck.materials.append(
 """/MAT/LAW2/21
 AL_5052_FOIL
         2.680000E-09
         70000.000000            0.330000
-          210.000000           65.000000            0.250000            0.090000
+          210.000000           65.000000            0.250000            0.000000
             0.000000            1.000000            0.000000            0.000000         0            0.000000
             0.000000            0.000000         0            0.000000"""
     )
@@ -478,8 +478,8 @@ PUNCH_MASTER_GUIDE
    110 111         0         3"""
     )
 
-    # Imposed Velocity on Punch Master Node (Smooth Sinusoidal Ramp over 2 ms to v_punch = 1000 mm/s)
-    t_ramp = 0.002
+    # Imposed Velocity on Punch Master Node (Smooth Sinusoidal Ramp over 5 ms to v_punch = 400 mm/s)
+    t_ramp = 0.005
     n_pts = 10
     ramp_lines = ["/FUNCT/1", "SMOOTH_RAMP_VELOCITY"]
     for i in range(n_pts + 1):
@@ -529,7 +529,7 @@ def generate_model_phase3():
     print(f"Starter deck written: {starter_path} ({starter_path.stat().st_size / 1024:.1f} KB)")
 
     engine_path = models_dir / 'engine' / 'PUNCTURE_MESOFULL_0001.rad'
-    deck.write_engine(engine_path, t_stop=0.0162, anim_dt=0.0002, th_dt=0.00001)
+    deck.write_engine(engine_path, t_stop=0.0405, anim_dt=0.0005, th_dt=0.00002)
     print(f"Engine deck written:  {engine_path} ({engine_path.stat().st_size / 1024:.1f} KB)")
     print("Model generation completed successfully.")
 
