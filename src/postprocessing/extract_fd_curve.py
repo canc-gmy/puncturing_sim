@@ -11,7 +11,7 @@ import numpy as np
 import sys
 from scipy.signal import savgol_filter
 
-def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 1000.0) -> pd.DataFrame:
+def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 100.0) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
     df.columns = [c.strip().strip('"') for c in df.columns]
 
