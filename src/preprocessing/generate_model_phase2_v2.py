@@ -1,14 +1,15 @@
 """
-Phase 2: High-Fidelity Meso-Scale Hybrid Sandwich FE Model Generator (v2.0)
+Phase 2: High-Fidelity Meso-Scale Hybrid Sandwich FE Model Generator (v2.1)
 Combines:
 - Explicit 3D hexagonal aluminium honeycomb cell walls (shell elements, parts 21 & 22)
   in the central puncture zone (r <= 18.0 mm) with Johnson-Cook plasticity (/MAT/LAW2)
 - Homogenized crushable honeycomb core (/MAT/LAW28 + /PROP/TYPE6) in the outer zone (r > 18.0 mm)
 - 7 distinct orthotropic solid plies per CFRP skin ([0/45/0/45/0/45/0]) with /PROP/TYPE6
 - Progressive composite damage model /MAT/LAW25 (Chang-Chang) + /FAIL/CHANG
-- Tied interface /INTER/TYPE2 kinematically bonding honeycomb foil edges to composite face sheets
+- Multi-body penalty contact (/INTER/TYPE7) between skins and honeycomb foil edges, plus foil self-contact
 - Rigid cylindrical steel punch (dia 25 mm) with /INTER/TYPE7 penalty contact
-- Complete 20-column coordinate precision for OpenRadioss 2026
+- Quasi-static loading: 100 mm/s with smooth sinusoidal acceleration ramp
+- 81 animation states (0.20 mm displacement per frame)
 """
 
 from pathlib import Path
@@ -27,8 +28,8 @@ def build_phase2_v2_deck(
     cell_size: float = 3.175, # 1/8 inch
     punch_dia: float = 25.0,
     aperture_dia: float = 30.0,
-    v_punch: float = 1000.0,  # mm/s = 1.0 m/s
-    t_end: float = 0.0162,    # 16.2 ms -> 16.2 mm displacement
+    v_punch: float = 100.0,   # mm/s = 0.1 m/s explicit quasi-static
+    t_end: float = 0.162,     # 162 ms -> 16.2 mm displacement at 100 mm/s
     nc_inplane: int = 8,
     n_core_layers: int = 10,
 ) -> tuple[RadiossDeck, dict]:
@@ -85,6 +86,7 @@ def build_phase2_v2_deck(
 
     hex_bot_nodes = []
     hex_top_nodes = []
+    all_hex_nodes = list(hex_nodes.keys())
     candidate_contact_nodes = []
 
     for nid, (x, y, z) in hex_nodes.items():
@@ -97,7 +99,7 @@ def build_phase2_v2_deck(
             hex_top_nodes.append(nid)
         
         # Candidate contact nodes for punch contact
-        if np.sqrt(x**2 + y**2) <= 15.0:
+        if np.sqrt(x**2 + y**2) <= 18.0:
             candidate_contact_nodes.append(nid)
 
     for eid, pid, nids in hex_shells:
@@ -111,6 +113,8 @@ def build_phase2_v2_deck(
     elem_id = next_eid
     node_map_3d = {}
     bot_aperture_clamped_nodes = []
+    top_skin_inner_nodes = []
+    bot_skin_inner_nodes = []
 
     for iz, z in enumerate(z_layers):
         for in2d in range(n_nodes_2d):
@@ -122,9 +126,17 @@ def build_phase2_v2_deck(
             if iz == 0 and r_nodes_2d[in2d] >= 14.999:
                 bot_aperture_clamped_nodes.append(node_id)
 
-            # Contact candidate nodes: all nodes in penetration cylinder r <= 15.0 mm
-            if r_nodes_2d[in2d] <= 15.0:
+            # Contact candidate nodes: all nodes in penetration cylinder r <= 18.0 mm
+            if r_nodes_2d[in2d] <= 18.0:
                 candidate_contact_nodes.append(node_id)
+
+            # Top skin inner face nodes (iz == n_plies + n_core_layers)
+            if iz == (n_plies + n_core_layers) and r_nodes_2d[in2d] <= 18.0:
+                top_skin_inner_nodes.append(node_id)
+
+            # Bottom skin inner face nodes (iz == n_plies)
+            if iz == n_plies and r_nodes_2d[in2d] <= 18.0:
+                bot_skin_inner_nodes.append(node_id)
 
             node_id += 1
 
@@ -215,7 +227,6 @@ def build_phase2_v2_deck(
             p2 = punch_node_map_2d[n2_2d]
             p3 = punch_node_map_2d[n3_2d]
             p4 = punch_node_map_2d[n4_2d]
-            # Normal points in -Z toward plate (CW order)
             deck.add_shell(elem_id, 4, [p1, p4, p3, p2])
             elem_id += 1
 
@@ -349,54 +360,59 @@ AL_5052_FOIL_LAW2
             1.000000          925.000000            2.400000          293.000000"""
     )
 
-    # 10. Node Sets & Surfaces for Interfaces & Contact
-    # Secondary node sets for tied skin-core contacts
-    bot_hex_str = ""
-    for i, nid in enumerate(hex_bot_nodes):
-        bot_hex_str += f"{nid:10d}"
-        if (i + 1) % 10 == 0 or (i + 1) == len(hex_bot_nodes):
-            bot_hex_str += "\n"
+    # 10. Node Sets & Surfaces for Interfaces & Multi-Body Contact
+    def format_node_set(node_list: list[int]) -> str:
+        s = ""
+        for i, nid in enumerate(node_list):
+            s += f"{nid:10d}"
+            if (i + 1) % 10 == 0 or (i + 1) == len(node_list):
+                s += "\n"
+        return s.rstrip()
 
+    # GRNOD 10: Candidate contact slave nodes for punch contact (all sandwich nodes with r <= 18.0 mm)
+    candidate_contact_nodes = sorted(list(set(candidate_contact_nodes)))
     deck.node_groups.append(
-f"""/GRNOD/NODE/21/0
-HEX_CORE_BOT_NODES
-{bot_hex_str.rstrip()}"""
+f"""/GRNOD/NODE/10/0
+SANDWICH_CONTACT_SLAVE_NODES
+{format_node_set(candidate_contact_nodes)}"""
     )
 
-    top_hex_str = ""
-    for i, nid in enumerate(hex_top_nodes):
-        top_hex_str += f"{nid:10d}"
-        if (i + 1) % 10 == 0 or (i + 1) == len(hex_top_nodes):
-            top_hex_str += "\n"
-
+    # GRNOD 20: All honeycomb foil nodes (for foil self-contact)
     deck.node_groups.append(
-f"""/GRNOD/NODE/22/0
-HEX_CORE_TOP_NODES
-{top_hex_str.rstrip()}"""
+f"""/GRNOD/NODE/20/0
+ALL_HEX_FOIL_NODES
+{format_node_set(all_hex_nodes)}"""
+    )
+
+    # GRNOD 31: Top skin inner surface nodes (z = 17.331 mm, r <= 18.0 mm)
+    deck.node_groups.append(
+f"""/GRNOD/NODE/31/0
+TOP_SKIN_INNER_NODES
+{format_node_set(top_skin_inner_nodes)}"""
+    )
+
+    # GRNOD 32: Bottom skin inner surface nodes (z = 2.331 mm, r <= 18.0 mm)
+    deck.node_groups.append(
+f"""/GRNOD/NODE/32/0
+BOT_SKIN_INNER_NODES
+{format_node_set(bot_skin_inner_nodes)}"""
     )
 
     # Surface 1: Punch shell surface
     deck.surfaces.append(
 """/SURF/PART/1
 PUNCH_SURFACE
-4"""
+         4"""
     )
 
-    # Candidate contact slave nodes for punch contact (all sandwich nodes in puncture cylinder r <= 18.0 mm)
-    candidate_contact_nodes = sorted(list(set(candidate_contact_nodes)))
-    contact_nodes_str = ""
-    for i, nid in enumerate(candidate_contact_nodes):
-        contact_nodes_str += f"{nid:10d}"
-        if (i + 1) % 10 == 0 or (i + 1) == len(candidate_contact_nodes):
-            contact_nodes_str += "\n"
-
-    deck.node_groups.append(
-f"""/GRNOD/NODE/10/0
-SANDWICH_CONTACT_SLAVE_NODES
-{contact_nodes_str.rstrip()}"""
+    # Surface 20: Honeycomb foil shells surface (Part 21 + 22)
+    deck.surfaces.append(
+"""/SURF/PART/20
+HEX_FOIL_SURFACE
+        21        22"""
     )
 
-    # TYPE7 Penalty Contact between Punch and Sandwich
+    # Interface 1: Punch to Sandwich Contact (/INTER/TYPE7/1)
     deck.contacts.append(
 f"""/INTER/TYPE7/1
 PUNCH_TO_SANDWICH_CONTACT
@@ -404,22 +420,53 @@ PUNCH_TO_SANDWICH_CONTACT
 {1.0:20.6f}{0.10:20.6f}{0.0:20.6f}                    {0:10d}{0:10d}
 {1000.0:20.6f}{100000.0:20.6f}{0.0:20.6f}{0.0:20.6f}{0:10d}{0:10d}
 {1.0:20.6f}{0.25:20.6f}{0.02:20.6f}{0.0:20.6f}{0.0:20.6f}
-       000                             0            0.050000            0.000000            0.200000
+       000                             1            0.050000            0.000000            0.200000
+         0         0            0.000000         2         0         0            0.000000         0"""
+    )
+
+    # Interface 2: Top Skin Inner Face to Honeycomb Foil Shells (/INTER/TYPE7/2)
+    deck.contacts.append(
+f"""/INTER/TYPE7/2
+TOP_SKIN_TO_FOIL_CONTACT
+{31:10d}{20:10d}{4:10d}{0:10d}{3:10d}          {0:10d}{2:10d}{0:10d}{0:10d}
+{1.0:20.6f}{0.10:20.6f}{0.0:20.6f}                    {0:10d}{0:10d}
+{1000.0:20.6f}{100000.0:20.6f}{0.0:20.6f}{0.0:20.6f}{0:10d}{0:10d}
+{1.0:20.6f}{0.20:20.6f}{0.02:20.6f}{0.0:20.6f}{0.0:20.6f}
+       000                             1            0.050000            0.000000            0.200000
+         0         0            0.000000         2         0         0            0.000000         0"""
+    )
+
+    # Interface 3: Bottom Skin Inner Face to Honeycomb Foil Shells (/INTER/TYPE7/3)
+    deck.contacts.append(
+f"""/INTER/TYPE7/3
+BOT_SKIN_TO_FOIL_CONTACT
+{32:10d}{20:10d}{4:10d}{0:10d}{3:10d}          {0:10d}{2:10d}{0:10d}{0:10d}
+{1.0:20.6f}{0.10:20.6f}{0.0:20.6f}                    {0:10d}{0:10d}
+{1000.0:20.6f}{100000.0:20.6f}{0.0:20.6f}{0.0:20.6f}{0:10d}{0:10d}
+{1.0:20.6f}{0.20:20.6f}{0.02:20.6f}{0.0:20.6f}{0.0:20.6f}
+       000                             1            0.050000            0.000000            0.200000
+         0         0            0.000000         2         0         0            0.000000         0"""
+    )
+
+    # Interface 4: Honeycomb Foil Self-Contact (/INTER/TYPE7/4)
+    deck.contacts.append(
+f"""/INTER/TYPE7/4
+HEX_FOIL_SELF_CONTACT
+{20:10d}{20:10d}{4:10d}{0:10d}{3:10d}          {0:10d}{2:10d}{0:10d}{0:10d}
+{1.0:20.6f}{0.10:20.6f}{0.0:20.6f}                    {0:10d}{0:10d}
+{1000.0:20.6f}{100000.0:20.6f}{0.0:20.6f}{0.0:20.6f}{0:10d}{0:10d}
+{1.0:20.6f}{0.20:20.6f}{0.02:20.6f}{0.0:20.6f}{0.0:20.6f}
+       000                             1            0.050000            0.000000            0.200000
          0         0            0.000000         2         0         0            0.000000         0"""
     )
 
     # 11. Kinematics & Boundary Conditions
     # Rigid body for Punch
-    punch_nodes_str = ""
-    for i, nid in enumerate([n for n in punch_nodes if n != punch_center_id]):
-        punch_nodes_str += f"{nid:10d}"
-        if (i + 1) % 10 == 0 or (i + 1) == len(punch_nodes):
-            punch_nodes_str += "\n"
-
+    punch_nodes_str = format_node_set([n for n in punch_nodes if n != punch_center_id])
     deck.node_groups.append(
 f"""/GRNOD/NODE/1/0
 PUNCH_NODES_SET
-{punch_nodes_str.rstrip()}"""
+{punch_nodes_str}"""
     )
     deck.bcs.append(
 f"""/RBODY/1/0
@@ -431,16 +478,11 @@ RIGID_PUNCH
     )
 
     # Aperture Support Clamping
-    support_nodes_str = ""
-    for i, nid in enumerate(bot_aperture_clamped_nodes):
-        support_nodes_str += f"{nid:10d}"
-        if (i + 1) % 10 == 0 or (i + 1) == len(bot_aperture_clamped_nodes):
-            support_nodes_str += "\n"
-
+    support_nodes_str = format_node_set(bot_aperture_clamped_nodes)
     deck.node_groups.append(
 f"""/GRNOD/NODE/2/0
 SUPPORT_CLAMP_NODES
-{support_nodes_str.rstrip()}"""
+{support_nodes_str}"""
     )
     deck.bcs.append(
 f"""/BCS/1
@@ -448,17 +490,23 @@ SUPPORT_APERTURE_CLAMP
    111 111         0         2"""
     )
 
-    # Imposed Velocity on Punch Master Node
+    # Imposed Velocity on Punch Master Node (Smooth Sinusoidal Ramp over 10 ms)
     deck.node_groups.append(
 f"""/GRNOD/NODE/3/0
 PUNCH_MASTER_NODE_SET
 {punch_center_id:10d}"""
     )
-    deck.bcs.append(
-f"""/FUNCT/1
-RAMP_VELOCITY
-                 0.0      {-v_punch:14.5f}
-                 1.0      {-v_punch:14.5f}
+
+    t_ramp = 0.010
+    n_pts = 10
+    ramp_lines = ["/FUNCT/1", "SMOOTH_RAMP_VELOCITY"]
+    for i in range(n_pts + 1):
+        t_i = i * (t_ramp / n_pts)
+        val = -v_punch * 0.5 * (1.0 - np.cos(np.pi * i / n_pts))
+        ramp_lines.append(f"{t_i:20.6f}{val:20.6f}")
+    ramp_lines.append(f"{1.0:20.6f}{-v_punch:20.6f}")
+
+    deck.bcs.append("\n".join(ramp_lines) + f"""
 /IMPVEL/1
 IMPOSED_PUNCH_VELOCITY
          1         Z         0         0         3         0         0
@@ -492,10 +540,10 @@ if __name__ == '__main__':
     starter_path = base_dir / 'models' / 'phase2_mesoscale' / 'starter' / 'PUNCTURE_MESO_0000.rad'
     engine_path = base_dir / 'models' / 'phase2_mesoscale' / 'engine' / 'PUNCTURE_MESO_0001.rad'
 
-    print("Generating High-Fidelity Phase 2 Meso-Scale Model (v2.0)...")
+    print("Generating High-Fidelity Phase 2 Meso-Scale Model (v2.1)...")
     deck, stats = build_phase2_v2_deck()
     deck.write_starter(starter_path)
-    deck.write_engine(engine_path, t_stop=stats['t_end'])
+    deck.write_engine(engine_path, t_stop=stats['t_end'], anim_dt=0.002, th_dt=0.0001)
 
     print(f"Phase 2 Starter deck written: {starter_path} ({starter_path.stat().st_size / 1024:.1f} KB)")
     print(f"Phase 2 Engine deck written:  {engine_path} ({engine_path.stat().st_size / 1024:.1f} KB)")

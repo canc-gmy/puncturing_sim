@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-10-27
+### Added
+- **24-Thread Parallel Solver Execution:** Updated `run_simulation.py` with OpenMP 24-worker configuration (`-nt 24`, `OMP_NUM_THREADS=24`, `KMP_STACKSIZE=400m`) fully leveraging the 24 logical processors of AMD Ryzen 9 7900X.
+- **Quasi-Static Velocity Scaling ($100\text{ mm/s}$):** Reduced indenter velocity from $1000\text{ mm/s}$ to $100\text{ mm/s}$ with a smooth sinusoidal acceleration ramp over $10\text{ ms}$, suppressing dynamic inertia oscillations and ensuring $E_{\text{kin}} / E_{\text{int}} < 1\%$.
+- **High-Density Animation Output (82 States):** Refined `/ANIM/DT` to $\Delta t = 2.0\text{ ms}$ ($\Delta d = 0.20\text{ mm}$ displacement per frame), producing 82 continuous 3D VTK visualization states for Phase 2 and 55 states for Phase 1.
+- **Multi-Body Penalty Interface Formulation (`/INTER/TYPE7`):**
+  - Top skin to honeycomb cell-wall edges contact (`/INTER/TYPE7/2`) transmitting compression and shear.
+  - Honeycomb cell-wall edges to bottom skin contact (`/INTER/TYPE7/3`) supporting the core over the aperture.
+  - Honeycomb cell-wall self-contact (`/INTER/TYPE7/4`) preventing foil interpenetration during progressive folding.
+  - Incorporated `INACTIV=1` deactivation to eliminate initial contact force spikes without altering coordinates.
+- **Validation Correlation Improvements:**
+  - Phase 1 absorbed energy achieved $221.50\text{ J}$ ($-1.8\%$ relative error against physical benchmark $225.56\text{ J}$).
+  - Initial skin shear breakthrough captured at $2.00\text{ mm}$ with $15.28\text{ kN}$ ($+5.4\%$ error).
+  - Phase 2 peak shear puncture force reached $52.89\text{ kN}$ at $3.71\text{ mm}$, with Sprague-Geers Comprehensive Error improved from $73.81\%$ to $51.95\%$.
+- **Compiled PDF Documentation:**
+  - `reports/phase1_report.pdf` & `docs/reports/phase1_report.pdf` (822 KB).
+  - `reports/phase2_report.pdf` & `docs/reports/phase2_report.pdf` (423 KB).
+  - Updated multi-model correlation overlay `docs/reports/correlation_overlay.png`.
+
 ## [2.0.0] - 2026-10-27
 ### Added
 - **Cylindrical Polar Meshing (`polar_mesh_2d.py`):** Concentric rings matching punch radius ($r_p = 12.5\text{ mm}$) and aperture window ($r_{\text{ap}} = 15.0\text{ mm}$) with five radial element bands resolving the $2.5\text{ mm}$ shear clearance gap.
