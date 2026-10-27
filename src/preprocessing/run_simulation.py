@@ -50,13 +50,17 @@ def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, m
         engine_exe = exec_dir / "engine_win64.exe"
 
     if model_dir is None:
-        if "MESO" in model_prefix.upper():
+        if "MESOFULL" in model_prefix.upper() or "PHASE3" in model_prefix.upper():
+            model_dir = BASE_DIR / "models" / "phase3_full_mesoscale"
+        elif "MESO" in model_prefix.upper():
             model_dir = BASE_DIR / "models" / "phase2_mesoscale"
         else:
             model_dir = BASE_DIR / "models" / "phase1_homogenized"
 
     if run_dir is None:
-        if "MESO" in model_prefix.upper():
+        if "MESOFULL" in model_prefix.upper() or "PHASE3" in model_prefix.upper():
+            run_dir = BASE_DIR / "results" / "phase3_full_mesoscale"
+        elif "MESO" in model_prefix.upper():
             run_dir = BASE_DIR / "results" / "phase2_mesoscale"
         else:
             run_dir = BASE_DIR / "results" / "phase1_homogenized"
@@ -117,7 +121,9 @@ def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, m
 if __name__ == '__main__':
     target = sys.argv[1] if len(sys.argv) > 1 else "phase1"
     threads = int(sys.argv[2]) if len(sys.argv) > 2 else 24
-    if target.lower() == "phase2":
+    if target.lower() in ["phase3", "mesofull"]:
+        run_simulation(model_prefix="PUNCTURE_MESOFULL", num_threads=threads)
+    elif target.lower() == "phase2":
         run_simulation(model_prefix="PUNCTURE_MESO", num_threads=threads)
     else:
         run_simulation(model_prefix="PUNCTURE_HOMOG", num_threads=threads)

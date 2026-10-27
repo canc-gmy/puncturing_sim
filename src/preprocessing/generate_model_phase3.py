@@ -48,6 +48,7 @@ def build_phase3_deck(
     v_punch: float = 1000.0,  # mm/s = 1.0 m/s explicit rapid calibration
     t_end: float = 0.0162,    # 16.2 ms -> 16.2 mm displacement at 1000 mm/s
     nc_inplane: int = 8,
+    z_offset: float = 0.050,  # mm physical clearance to prevent initial penetration
 ) -> tuple[RadiossDeck, dict]:
     deck = RadiossDeck(title="PUNCTURE_MESOFULL")
 
@@ -60,10 +61,12 @@ def build_phase3_deck(
 
     z_bot_min = 0.0
     z_bot_max = t_skin # 2.331 mm
-    z_core_min = z_bot_max # 2.331 mm
-    z_core_max = z_core_min + h_core # 17.331 mm
-    z_top_min = z_core_max # 17.331 mm
+    z_top_min = z_bot_max + h_core # 17.331 mm
     z_top_max = z_top_min + t_skin # 19.662 mm
+
+    # Foil core vertical bounds with clearance
+    z_core_min = z_bot_max + z_offset # 2.381 mm
+    z_core_max = z_top_min - z_offset # 17.281 mm
 
     ply_angles = [0.0, 45.0, 0.0, 45.0, 0.0, 45.0, 0.0]
 
@@ -104,7 +107,6 @@ def build_phase3_deck(
     bot_aperture_clamped_nodes = []
     solid_sym_x_nodes = []
     solid_sym_y_nodes = []
-    top_skin_contact_slave_nodes = []
 
     # Bottom Skin Nodes (8 planes: iz = 0 .. 7)
     for iz, z in enumerate(z_bot_planes):
@@ -133,9 +135,6 @@ def build_phase3_deck(
                 solid_sym_x_nodes.append(node_id)
             if abs(y) < 1e-5:
                 solid_sym_y_nodes.append(node_id)
-            # Contact slave nodes: top skin outer face (iz == 7) with r <= 18.0 mm
-            if iz == n_plies and r_nodes_2d[in2d] <= 18.0:
-                top_skin_contact_slave_nodes.append(node_id)
 
             node_id += 1
 
@@ -341,8 +340,13 @@ BOT_SKIN_INNER_SURF
        107"""
     )
 
-    # Contact 1: Punch to Top Skin (/INTER/TYPE7/1)
-    contact_nodes_str = format_node_set(top_skin_contact_slave_nodes)
+    # Contact 1: Punch to Sandwich Structure (/INTER/TYPE7/1)
+    # Include all sandwich nodes (top skin, honeycomb core foils, bottom skin) in interaction zone (r <= 28 mm)
+    punch_contact_slave_nodes = sorted([
+        nid for nid, node in deck.nodes.items()
+        if nid < punch_master_node_id and (node.x**2 + node.y**2)**0.5 <= 28.0
+    ])
+    contact_nodes_str = format_node_set(punch_contact_slave_nodes)
     deck.node_groups.append(
 f"""/GRNOD/NODE/10/0
 SANDWICH_CONTACT_SLAVE_NODES
@@ -375,8 +379,8 @@ TOP_SKIN_TO_FOIL_CONTACT
         20        10         4         0         3         1         0         2         0
             1.000000            0.100000            0.000000
          1000.000000       100000.000000            0.000000            0.000000         0         0
-            1.000000            0.200000            0.020000            0.000000            0.000000
-       000                             1            0.050000            0.000000            0.200000
+            1.000000            0.200000            0.010000            0.000000            0.000000
+       000                             0            0.050000            0.000000            0.200000
          0         0            0.000000         2         0         0"""
     )
 
@@ -387,8 +391,8 @@ BOT_SKIN_TO_FOIL_CONTACT
         20        11         4         0         3         1         0         2         0
             1.000000            0.100000            0.000000
          1000.000000       100000.000000            0.000000            0.000000         0         0
-            1.000000            0.200000            0.020000            0.000000            0.000000
-       000                             1            0.050000            0.000000            0.200000
+            1.000000            0.200000            0.010000            0.000000            0.000000
+       000                             0            0.050000            0.000000            0.200000
          0         0            0.000000         2         0         0"""
     )
 

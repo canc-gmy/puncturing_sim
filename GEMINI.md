@@ -8,10 +8,11 @@
   `C:\Users\rossi\miniconda3\condabin\conda.bat run -n puncturing python <script.py>`.
 
 ## 2. Contact Interface Standards
-- **Honeycomb Foil-to-Laminate Contact:** NEVER use `/INTER/TYPE7` between vertical foil shells and horizontal composite laminate faces. Use `/INTER/TYPE19` (Edge-to-Surface) with:
+- **Honeycomb Foil-to-Laminate Contact:** NEVER use `/INTER/TYPE7` node-to-surface between vertical foil shells and horizontal composite laminate faces. Use `/INTER/TYPE19` (Edge-to-Surface) with:
   - Master Surface: Composite skin inner face (`/SURF/PART/EXT`).
   - Secondary Set: Foil shell part (`/SURF/PART`).
-  - Parameters: `Iedge = 1`, `INACTIV = 1`, friction $\mu \approx 0.15 - 0.20$.
+  - Parameters: `Iedge = 1`, `z_offset = 0.050 mm` physical clearance, `Gapmin = 0.010 mm`, `INACTIV = 0` (never `1`, which deactivates contact stiffness on initial penetrations), friction $\mu \approx 0.15 - 0.20$.
+  - Indenter Contact (`/INTER/TYPE7/1`): Secondary set must include all laminate and foil nodes in the puncture zone ($r \le 28.0\text{ mm}$) to prevent indenter mesh penetration through eroded plies.
 - **Foil Self-Contact:** Always pair with `/INTER/TYPE7/4` self-contact (`INACTIV = 1`) among foil shells to capture progressive accordion folding.
 
 ## 3. Symmetry & Multi-Scale Conventions
