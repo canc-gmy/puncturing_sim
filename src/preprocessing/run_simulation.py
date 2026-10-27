@@ -36,7 +36,7 @@ def setup_environment(oc_root: Path) -> dict:
     env["PATH"] = ";".join(paths_to_add) + ";" + env.get("PATH", "")
     return env
 
-def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, model_dir: Path = None, num_threads: int = 4):
+def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, model_dir: Path = None, num_threads: int = 8):
     oc_root = find_opencourant_root()
     env = setup_environment(oc_root)
     exec_dir = oc_root / "exec"

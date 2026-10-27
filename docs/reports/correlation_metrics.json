@@ -1,18 +1,34 @@
 {
   "experimental": {
     "peak_force_kN": 35.8,
-    "absorbed_energy_J": 225.565
+    "absorbed_energy_J": 225.56
   },
   "phase1_homogenized": {
-    "peak_force_kN": 8.8246,
-    "peak_force_error_pct": 75.35027932960894,
-    "absorbed_energy_J": 19.217883425,
-    "energy_error_pct": 91.48011286103784
+    "peak_force_kN": 50.39,
+    "peak_force_error_pct": 40.75,
+    "absorbed_energy_J": 135.35,
+    "energy_error_pct": 39.99,
+    "sprague_geers": {
+      "sprague_geers_M_pct": -3.36,
+      "sprague_geers_P_pct": 35.83,
+      "sprague_geers_C_pct": 35.99,
+      "M": -0.0336,
+      "P": 0.3583,
+      "C": 0.3599
+    }
   },
   "phase2_mesoscale": {
-    "peak_force_kN": 0.5827,
-    "peak_force_error_pct": 98.37234636871509,
-    "absorbed_energy_J": 0.5595700000000002,
-    "energy_error_pct": 99.75192516569503
+    "peak_force_kN": 18.63,
+    "peak_force_error_pct": 47.97,
+    "absorbed_energy_J": 41.9,
+    "energy_error_pct": 81.42,
+    "sprague_geers": {
+      "sprague_geers_M_pct": -67.07,
+      "sprague_geers_P_pct": 30.82,
+      "sprague_geers_C_pct": 73.81,
+      "M": -0.6707,
+      "P": 0.3082,
+      "C": 0.7381
+    }
   }
 }
