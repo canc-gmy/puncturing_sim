@@ -1,9 +1,9 @@
 """
-OpenRadioss / OpenCourant File Writer Utility (v2.2)
+OpenRadioss / OpenCourant File Writer Utility (v3.1)
 Writes conforming .rad starter and engine input decks with 20-column numerical precision.
-Supports 3D Bricks (/BRICK), 2D Shells (/SHELL), Properties (/PROP), Materials (/MAT),
-Surfaces (/SURF), Interfaces (/INTER), Boundary Conditions (/BCS, /IMPVEL, /RBODY),
-and Time History outputs (/TH).
+Supports 3D Bricks (/BRICK), Cohesive Bricks (/PROP/TYPE43, /MAT/LAW59), 2D Shells (/SHELL),
+Properties (/PROP), Materials (/MAT), Functions (/FUNCT), Surfaces (/SURF), Interfaces (/INTER),
+Boundary Conditions (/BCS, /IMPVEL, /RBODY), and Time History outputs (/TH).
 """
 
 from pathlib import Path
@@ -37,6 +37,7 @@ class RadiossDeck:
         self.bricks_by_part: dict[int, list[BrickElem]] = {}
         self.shells_by_part: dict[int, list[ShellElem]] = {}
         self.properties: list[str] = []
+        self.functions: list[str] = []
         self.materials: list[str] = []
         self.node_groups: list[str] = []
         self.surfaces: list[str] = []
@@ -83,6 +84,10 @@ class RadiossDeck:
             for prop in self.properties:
                 f.write(prop + "\n")
 
+            # Functions (before materials)
+            for fn in self.functions:
+                f.write(fn + "\n")
+
             # Materials
             for mat in self.materials:
                 f.write(mat + "\n")
@@ -121,7 +126,16 @@ class RadiossDeck:
 
             f.write("/END\n")
 
-    def write_engine(self, filepath: Path, t_stop: float = 0.0162, anim_dt: float = 0.0002, th_dt: float = 0.00001):
+    def write_engine(
+        self,
+        filepath: Path,
+        t_stop: float = 0.0865,
+        anim_dt: float = 0.0005,
+        th_dt: float = 0.00002,
+        dt_noda: float = 5.0e-8,
+        dt_brick_del: float = 2.0e-8,
+        dt_shell_del: float = 1.0e-9
+    ):
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w') as f:
             f.write("#RADIOSS ENGINE\n")
@@ -134,13 +148,15 @@ class RadiossDeck:
             f.write("/ANIM/VECT/DISP\n")
             f.write("/ANIM/VECT/CONT\n")
             f.write("/ANIM/BRICK/TENS/STRESS/ALL\n")
+            f.write("/ANIM/SHELL/TENS/STRESS/ALL\n")
+            f.write("/ANIM/ELEM/EPSP\n")
             f.write("/ANIM/ELEM/ENERGY\n")
             f.write(f"/TFILE\n")
             f.write(f"{th_dt:16.6f}\n")
             f.write("/DT/NODA/CST\n")
-            f.write("0.900000        1.000000E-07\n")
+            f.write(f"0.900000        {dt_noda:16.6E}\n")
             f.write("/DT/BRICK/DEL\n")
-            f.write("0.900000        2.000000E-08\n")
+            f.write(f"0.900000        {dt_brick_del:16.6E}\n")
             f.write("/DT/SHELL/DEL\n")
-            f.write("0.900000        1.000000E-09\n")
+            f.write(f"0.900000        {dt_shell_del:16.6E}\n")
             f.write("/END\n")

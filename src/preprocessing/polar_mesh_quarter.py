@@ -15,7 +15,7 @@ Generates a conformal quad mesh for quadrant 1 (x >= 0, y >= 0):
 import numpy as np
 from typing import Tuple, List, Dict
 
-def generate_quarter_inplane_mesh(nc: int = 8, r0: float = 4.0) -> Tuple[np.ndarray, List[List[int]], Dict[str, List[int]]]:
+def generate_quarter_inplane_mesh(nc: int = 12, r0: float = 4.0) -> Tuple[np.ndarray, List[List[int]], Dict[str, List[int]]]:
     """
     Generates 2D nodes and quad elements for quadrant 1: [0, 50] x [0, 50] mm.
     Returns:

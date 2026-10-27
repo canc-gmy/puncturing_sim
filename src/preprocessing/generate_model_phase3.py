@@ -1,20 +1,21 @@
 """
-Phase 3: Full Discrete Meso-Scale Honeycomb Sandwich Puncture Model Generator (v3.0)
+Phase 3.1: Full Discrete Meso-Scale Honeycomb Sandwich Puncture Model Generator
 Features:
 - Quarter-symmetric domain (x >= 0, y >= 0, 50x50 mm)
 - 100% EXPLICIT 3D hexagonal aluminium honeycomb cell walls (shell elements, parts 21 & 22)
   across the ENTIRE quadrant (5,226 shell elements, 4,382 nodes)
-- Calibrated Johnson-Cook foil plasticity (/MAT/LAW2/21) with thin-foil tearing parameters
-  (A = 210 MPa, B = 65 MPa, n = 0.25, eps_max = 0.09)
+- Calibrated Johnson-Cook foil plasticity (/MAT/LAW2/21) supporting ductile folding
 - 7 distinct orthotropic solid plies per CFRP skin ([0/45/0/45/0/45/0]) with /PROP/TYPE6
-- Progressive composite damage model /MAT/LAW25 (Chang-Chang) + /FAIL/CHANG
+- 3D Hashin progressive composite damage model /MAT/LAW25 + /FAIL/HASHIN
+- 12 inter-ply zero-thickness cohesive solid layers (/PROP/TYPE43 + /MAT/LAW59) for
+  interlaminar delamination (G_Ic = 280 J/m², G_IIc = 800 J/m², Mode I/II traction laws)
 - Dedicated edge-to-surface contact (/INTER/TYPE19) between both composite skins and foil shell edges
-  with Iedge=1 and INACTIV=1 to ensure purely vertical force transmission without transverse expulsion
-- Full honeycomb foil self-contact (/INTER/TYPE7/4) with INACTIV=1 for realistic progressive cell folding
+  with Iedge=1, physical offset 0.050 mm, and INACTIV=0 for active contact stiffness from cycle 0
+- Full honeycomb foil self-contact (/INTER/TYPE7/4) with INACTIV=1 for progressive cell folding
 - Rigid cylindrical steel punch (R=12.5 mm quarter disc) with /INTER/TYPE7 penalty contact
-- Exact symmetric boundary conditions on x=0 (100 011) and y=0 (010 101) across skins and foil shells
-- Rapid calibration kinematics: 1000 mm/s with 2 ms smooth sinusoidal ramp over 16.2 mm stroke
-- Safe mass scaling (/DT/NODA/CST at 1.0e-7 s) with deltaM/M < 0.2%
+- Exact symmetric boundary conditions on x=0 (100 011) and y=0 (010 101) across all plies, cohesive layers, and foils
+- Quasi-static kinematics: 200 mm/s with 10 ms smooth sinusoidal ramp over 16.2 mm stroke
+- Strict mass scaling (/DT/NODA/CST at 5.0e-8 s) with deltaM/M < 3%
 - Calibrated solid brick deletion threshold (/DT/BRICK/DEL at 2.0e-8 s)
 """
 
@@ -45,9 +46,9 @@ def build_phase3_deck(
     cell_size: float = 3.175, # 1/8 inch
     punch_dia: float = 25.0,
     aperture_dia: float = 30.0,
-    v_punch: float = 400.0,   # mm/s = 0.4 m/s calibrated quasi-static velocity
-    t_end: float = 0.0405,    # 40.5 ms -> 16.2 mm displacement at 400 mm/s
-    nc_inplane: int = 8,
+    v_punch: float = 200.0,   # mm/s = 0.2 m/s calibrated quasi-static velocity
+    t_end: float = 0.0865,    # 86.5 ms -> 16.2 mm displacement at 200 mm/s with 10 ms ramp
+    nc_inplane: int = 12,
     z_offset: float = 0.050,  # mm physical clearance to prevent initial penetration
 ) -> tuple[RadiossDeck, dict]:
     deck = RadiossDeck(title="PUNCTURE_MESOFULL")
@@ -97,84 +98,114 @@ def build_phase3_deck(
     print(f"Added {len(hex_nodes)} discrete foil nodes and {len(hex_shells)} foil shell elements.")
     print(f"Foil bottom boundary nodes: {len(hex_bot_nodes)}, top: {len(hex_top_nodes)}")
 
-    # 4. Generate Solid Composite Skins (Bottom & Top)
+    # 4. Generate Solid Composite Skins & Cohesive Interlaminar Layers
     node_id = next_nid
     elem_id = next_eid
-
-    bot_node_map = {} # (in2d, i_ply_plane) -> node_id
-    top_node_map = {} # (in2d, i_ply_plane) -> node_id
 
     bot_aperture_clamped_nodes = []
     solid_sym_x_nodes = []
     solid_sym_y_nodes = []
 
-    # Bottom Skin Nodes (8 planes: iz = 0 .. 7)
-    for iz, z in enumerate(z_bot_planes):
+    # Bottom skin plies: 101 .. 107
+    # Between ply p and p+1: cohesive layer 201 + p (p = 0 .. 5)
+    bot_ply_nodes = {} # (p_idx, local_face 0 or 1, in2d) -> node_id
+
+    for p_idx in range(n_plies):
+        z_bot_face = z_bot_planes[p_idx]
+        z_top_face = z_bot_planes[p_idx + 1]
+
+        # Bottom face nodes of ply p_idx
         for in2d in range(n_nodes_2d):
             x, y = nodes_2d[in2d]
-            deck.add_node(node_id, x, y, z)
-            bot_node_map[(in2d, iz)] = node_id
-
-            if iz == 0 and r_nodes_2d[in2d] >= 14.999:
+            deck.add_node(node_id, x, y, z_bot_face)
+            bot_ply_nodes[(p_idx, 0, in2d)] = node_id
+            if p_idx == 0 and r_nodes_2d[in2d] >= 14.999:
                 bot_aperture_clamped_nodes.append(node_id)
             if abs(x) < 1e-5:
                 solid_sym_x_nodes.append(node_id)
             if abs(y) < 1e-5:
                 solid_sym_y_nodes.append(node_id)
-
             node_id += 1
 
-    # Top Skin Nodes (8 planes: iz = 0 .. 7)
-    for iz, z in enumerate(z_top_planes):
+        # Top face nodes of ply p_idx
         for in2d in range(n_nodes_2d):
             x, y = nodes_2d[in2d]
-            deck.add_node(node_id, x, y, z)
-            top_node_map[(in2d, iz)] = node_id
-
+            deck.add_node(node_id, x, y, z_top_face)
+            bot_ply_nodes[(p_idx, 1, in2d)] = node_id
             if abs(x) < 1e-5:
                 solid_sym_x_nodes.append(node_id)
             if abs(y) < 1e-5:
                 solid_sym_y_nodes.append(node_id)
-
             node_id += 1
 
-    # 5. Define Solid Elements for Composite Skins
-    # Bottom skin elements: 7 plies (Parts 101 .. 107)
-    for p_idx in range(n_plies):
+        # Solid elements for ply p_idx
         part_id = 101 + p_idx
         for q in quads_2d:
-            n1_2d, n2_2d, n3_2d, n4_2d = q
-            b1 = bot_node_map[(n1_2d, p_idx)]
-            b2 = bot_node_map[(n2_2d, p_idx)]
-            b3 = bot_node_map[(n3_2d, p_idx)]
-            b4 = bot_node_map[(n4_2d, p_idx)]
-            t1 = bot_node_map[(n1_2d, p_idx + 1)]
-            t2 = bot_node_map[(n2_2d, p_idx + 1)]
-            t3 = bot_node_map[(n3_2d, p_idx + 1)]
-            t4 = bot_node_map[(n4_2d, p_idx + 1)]
+            b1 = bot_ply_nodes[(p_idx, 0, q[0])]
+            b2 = bot_ply_nodes[(p_idx, 0, q[1])]
+            b3 = bot_ply_nodes[(p_idx, 0, q[2])]
+            b4 = bot_ply_nodes[(p_idx, 0, q[3])]
+            t1 = bot_ply_nodes[(p_idx, 1, q[0])]
+            t2 = bot_ply_nodes[(p_idx, 1, q[1])]
+            t3 = bot_ply_nodes[(p_idx, 1, q[2])]
+            t4 = bot_ply_nodes[(p_idx, 1, q[3])]
             deck.add_brick(elem_id, part_id, [b1, b2, b3, b4, t1, t2, t3, t4])
             elem_id += 1
 
-    # Top skin elements: 7 plies (Parts 108 .. 114)
+    # Bottom skin plies: 101 .. 107
+    # Inter-ply delamination will be modeled via dedicated cohesive tiebreak interfaces (/INTER/TYPE2 with Spotflag=20)
+    # between duplicate coincident nodes, eliminating zero-thickness element instabilities upon solid element erosion.
+
+
+    # Top skin plies: 108 .. 114
+    # Between ply p and p+1: cohesive layer 208 + p (p = 0 .. 5)
+    top_ply_nodes = {} # (p_idx, local_face 0 or 1, in2d) -> node_id
+
     for p_idx in range(n_plies):
+        z_bot_face = z_top_planes[p_idx]
+        z_top_face = z_top_planes[p_idx + 1]
+
+        # Bottom face nodes of top ply p_idx
+        for in2d in range(n_nodes_2d):
+            x, y = nodes_2d[in2d]
+            deck.add_node(node_id, x, y, z_bot_face)
+            top_ply_nodes[(p_idx, 0, in2d)] = node_id
+            if abs(x) < 1e-5:
+                solid_sym_x_nodes.append(node_id)
+            if abs(y) < 1e-5:
+                solid_sym_y_nodes.append(node_id)
+            node_id += 1
+
+        # Top face nodes of top ply p_idx
+        for in2d in range(n_nodes_2d):
+            x, y = nodes_2d[in2d]
+            deck.add_node(node_id, x, y, z_top_face)
+            top_ply_nodes[(p_idx, 1, in2d)] = node_id
+            if abs(x) < 1e-5:
+                solid_sym_x_nodes.append(node_id)
+            if abs(y) < 1e-5:
+                solid_sym_y_nodes.append(node_id)
+            node_id += 1
+
         part_id = 108 + p_idx
         for q in quads_2d:
-            n1_2d, n2_2d, n3_2d, n4_2d = q
-            b1 = top_node_map[(n1_2d, p_idx)]
-            b2 = top_node_map[(n2_2d, p_idx)]
-            b3 = top_node_map[(n3_2d, p_idx)]
-            b4 = top_node_map[(n4_2d, p_idx)]
-            t1 = top_node_map[(n1_2d, p_idx + 1)]
-            t2 = top_node_map[(n2_2d, p_idx + 1)]
-            t3 = top_node_map[(n3_2d, p_idx + 1)]
-            t4 = top_node_map[(n4_2d, p_idx + 1)]
+            b1 = top_ply_nodes[(p_idx, 0, q[0])]
+            b2 = top_ply_nodes[(p_idx, 0, q[1])]
+            b3 = top_ply_nodes[(p_idx, 0, q[2])]
+            b4 = top_ply_nodes[(p_idx, 0, q[3])]
+            t1 = top_ply_nodes[(p_idx, 1, q[0])]
+            t2 = top_ply_nodes[(p_idx, 1, q[1])]
+            t3 = top_ply_nodes[(p_idx, 1, q[2])]
+            t4 = top_ply_nodes[(p_idx, 1, q[3])]
             deck.add_brick(elem_id, part_id, [b1, b2, b3, b4, t1, t2, t3, t4])
             elem_id += 1
 
+    # Top skin plies: 108 .. 114
+    # Inter-ply delamination will be modeled via dedicated cohesive tiebreak interfaces (/INTER/TYPE2 with Spotflag=20)
     total_bricks = sum(len(b) for b in deck.bricks_by_part.values())
-    print(f"Generated {total_bricks} composite solid brick elements (no core continuum bricks).")
+    print(f"Generated {total_bricks} solid CFRP brick elements across 14 plies.")
 
-    # 6. Generate Cylindrical Punch Rigid Shells (Part 4)
+    # 5. Generate Cylindrical Punch Rigid Shells (Part 4)
     punch_nodes = []
     punch_node_map_2d = {}
     z_punch_face = z_top_max + 0.02 # 0.02 mm tangent clearance (no free-flight dynamic impact)
@@ -205,23 +236,25 @@ def build_phase3_deck(
     print(f"Generated rigid quarter punch with {len(punch_nodes)} nodes and {total_punch_shells} shells.")
     print(f"Total shells across model: {sum(len(s) for s in deck.shells_by_part.values())}")
 
-    # 7. Part Definitions
+    # 6. Part Definitions
     for p_idx in range(n_plies):
         deck.parts[101 + p_idx] = (f"CFRP_BOT_PLY_{p_idx+1}", 101 + p_idx, 1)
         deck.parts[108 + p_idx] = (f"CFRP_TOP_PLY_{p_idx+1}", 108 + p_idx, 1)
+
+
 
     deck.parts[21] = ("HEX_SINGLE_FOILS", 21, 21)
     deck.parts[22] = ("HEX_DOUBLE_FOILS", 22, 21)
     deck.parts[4] = ("PUNCH_RIGID_SHELL", 4, 4)
 
-    # 8. Properties Setup
+    # 7. Properties Setup
     # Properties 101..107 (Bottom skin plies)
     for p_idx in range(n_plies):
         prop_id = 101 + p_idx
         phi = ply_angles[p_idx]
         deck.properties.append(
 f"""/PROP/TYPE6/{prop_id}/0
-CFRP_PLY_{p_idx+1}_PROP
+CFRP_BOT_PLY_{p_idx+1}_PROP
          1         4                   0         0         0         0         2            0.000000
                  0.1                 0.1                 0.1
                  0.0                 0.0                 0.0         0         1         0
@@ -244,6 +277,8 @@ CFRP_TOP_PLY_{p_idx+1}_PROP
             0.000000            0.000000            0.000000            0.000000            0.000000
          0         0         0"""
         )
+
+
 
     # Honeycomb Single Foil Shell Property (21): t = 0.0381 mm
     deck.properties.append(
@@ -272,8 +307,24 @@ PUNCH_RIGID_SHELL_PROP
          1                      1.000000            0.833333                   0         0         0"""
     )
 
+    # 8. Traction-Separation Functions for Cohesive Delamination
+    # Mode I Normal: Peak 60 MPa, G_Ic = 280 J/m² (0.280 N/mm) -> delta_n_f = 0.009333 mm
+    deck.functions.append(
+"""/FUNCT/101
+NORMAL_TRACTION_SEPARATION
+                 0.0                60.0
+            0.009333                 0.0"""
+    )
+    # Mode II Shear: Peak 90 MPa, G_IIc = 800 J/m² (0.800 N/mm) -> delta_t_f = 0.017778 mm
+    deck.functions.append(
+"""/FUNCT/102
+SHEAR_TRACTION_SEPARATION
+                 0.0                90.0
+            0.017778                 0.0"""
+    )
+
     # 9. Materials Setup
-    # Mat 1: CFRP Orthotropic with Chang-Chang failure
+    # Mat 1: CFRP Orthotropic with 3D Hashin progressive damage model (/FAIL/HASHIN)
     deck.materials.append(
 """/MAT/LAW25/1
 CFRP_T700_TWILL
@@ -287,10 +338,14 @@ CFRP_T700_TWILL
           104.000000          104.000000            0.000000            0.000000         0
             0.000000            0.000000            0.000000
          0            0.000000
-/FAIL/CHANG/1
+/FAIL/HASHIN/1
+         2         1         1                 1.0
           925.000000          925.000000          104.000000          559.000000          559.000000
-            1.000000         1.00000E-06         1         1            0.000000"""
+          250.000000          104.000000          104.000000           65.000000           65.000000
+            0.000000            1.000000        1.00000E+30"""
     )
+
+
 
     # Mat 21: Aluminium 5052 Foil (Calibrated Johnson-Cook Plasticity /MAT/LAW2, Ductile Folding)
     deck.materials.append(
@@ -326,22 +381,106 @@ HEX_FOIL_SURFACE
         21        22"""
     )
 
-    # Surface 10: Top skin inner face (external surface of lowest top ply Part 108)
+    # Helper function for formatting segment surfaces (/SURF/SEG)
+    def format_segments(seg_list):
+        lines = []
+        for sid, n1, n2, n3, n4 in seg_list:
+            lines.append(f"{sid:10d}{n1:10d}{n2:10d}{n3:10d}{n4:10d}")
+        return "\n".join(lines)
+
+    # Surface 10: Top skin inner face (ONLY bottom face quads of lowest top ply Part 108)
+    top_skin_inner_segs = []
+    for i_q, q in enumerate(quads_2d):
+        n1 = top_ply_nodes[(0, 0, q[0])]
+        n2 = top_ply_nodes[(0, 0, q[1])]
+        n3 = top_ply_nodes[(0, 0, q[2])]
+        n4 = top_ply_nodes[(0, 0, q[3])]
+        top_skin_inner_segs.append((i_q + 1, n1, n2, n3, n4))
     deck.surfaces.append(
-"""/SURF/PART/EXT/10
-TOP_SKIN_INNER_SURF
-       108"""
+f"""/SURF/SEG/10
+TOP_SKIN_INNER_FACE_SURF
+{format_segments(top_skin_inner_segs)}"""
     )
 
-    # Surface 11: Bottom skin inner face (external surface of highest bottom ply Part 107)
+    # Surface 11: Bottom skin inner face (ONLY top face quads of highest bottom ply Part 107)
+    bot_skin_inner_segs = []
+    for i_q, q in enumerate(quads_2d):
+        n1 = bot_ply_nodes[(n_plies - 1, 1, q[0])]
+        n2 = bot_ply_nodes[(n_plies - 1, 1, q[1])]
+        n3 = bot_ply_nodes[(n_plies - 1, 1, q[2])]
+        n4 = bot_ply_nodes[(n_plies - 1, 1, q[3])]
+        bot_skin_inner_segs.append((i_q + 1, n1, n2, n3, n4))
     deck.surfaces.append(
-"""/SURF/PART/EXT/11
-BOT_SKIN_INNER_SURF
-       107"""
+f"""/SURF/SEG/11
+BOT_SKIN_INNER_FACE_SURF
+{format_segments(bot_skin_inner_segs)}"""
     )
+
+    # 12 Inter-Ply Cohesive Interfaces modeled via /INTER/TYPE2 (Spotflag=20)
+    # Bottom Skin Inter-Ply Cohesive Interfaces (Plies 1-2, 2-3, 3-4, 4-5, 5-6, 6-7)
+    for p_idx in range(n_plies - 1):
+        coh_id = 201 + p_idx
+        # Master surface: dedicated top face quads of lower ply p_idx
+        seg_list = []
+        for i_q, q in enumerate(quads_2d):
+            n1 = bot_ply_nodes[(p_idx, 1, q[0])]
+            n2 = bot_ply_nodes[(p_idx, 1, q[1])]
+            n3 = bot_ply_nodes[(p_idx, 1, q[2])]
+            n4 = bot_ply_nodes[(p_idx, 1, q[3])]
+            seg_list.append((i_q + 1, n1, n2, n3, n4))
+        deck.surfaces.append(
+f"""/SURF/SEG/{coh_id}
+SURF_BOT_PLY_{p_idx+1}_TOP_FACE
+{format_segments(seg_list)}"""
+        )
+        # Secondary node group: bottom face nodes of upper ply
+        sec_nodes = [bot_ply_nodes[(p_idx + 1, 0, in2d)] for in2d in range(n_nodes_2d)]
+        deck.node_groups.append(
+f"""/GRNOD/NODE/{coh_id}/0
+NODES_BOT_PLY_{p_idx+2}_BOT
+{format_node_set(sec_nodes)}"""
+        )
+        deck.contacts.append(
+f"""/INTER/TYPE2/{coh_id}
+COH_BOT_INT_{p_idx+1}
+{coh_id:10d}{coh_id:10d}         0        20         0         0         2                    0.050000
+         1         0         0       101       102         1            0.009333            0.017778
+            1.000000            0.000000            1.000000            0.000000            1.000000"""
+        )
+
+    # Top Skin Inter-Ply Cohesive Interfaces (Plies 8-9, 9-10, 10-11, 11-12, 12-13, 13-14)
+    for p_idx in range(n_plies - 1):
+        coh_id = 208 + p_idx
+        # Master surface: dedicated top face quads of lower ply p_idx
+        seg_list = []
+        for i_q, q in enumerate(quads_2d):
+            n1 = top_ply_nodes[(p_idx, 1, q[0])]
+            n2 = top_ply_nodes[(p_idx, 1, q[1])]
+            n3 = top_ply_nodes[(p_idx, 1, q[2])]
+            n4 = top_ply_nodes[(p_idx, 1, q[3])]
+            seg_list.append((i_q + 1, n1, n2, n3, n4))
+        deck.surfaces.append(
+f"""/SURF/SEG/{coh_id}
+SURF_TOP_PLY_{p_idx+1}_TOP_FACE
+{format_segments(seg_list)}"""
+        )
+        # Secondary node group: bottom face nodes of upper ply
+        sec_nodes = [top_ply_nodes[(p_idx + 1, 0, in2d)] for in2d in range(n_nodes_2d)]
+        deck.node_groups.append(
+f"""/GRNOD/NODE/{coh_id}/0
+NODES_TOP_PLY_{p_idx+2}_BOT
+{format_node_set(sec_nodes)}"""
+        )
+        deck.contacts.append(
+f"""/INTER/TYPE2/{coh_id}
+COH_TOP_INT_{p_idx+1}
+{coh_id:10d}{coh_id:10d}         0        20         0         0         2                    0.050000
+         1         0         0       101       102         1            0.009333            0.017778
+            1.000000            0.000000            1.000000            0.000000            1.000000"""
+        )
 
     # Contact 1: Punch to Sandwich Structure (/INTER/TYPE7/1)
-    # Include all sandwich nodes (top skin, honeycomb core foils, bottom skin) in interaction zone (r <= 28 mm)
+    # Include all sandwich nodes (top skin, cohesive layers, honeycomb foils, bottom skin) in interaction zone (r <= 28 mm)
     punch_contact_slave_nodes = sorted([
         nid for nid, node in deck.nodes.items()
         if nid < punch_master_node_id and (node.x**2 + node.y**2)**0.5 <= 28.0
@@ -366,7 +505,7 @@ f"""/INTER/TYPE7/1
 PUNCH_TO_SANDWICH_CONTACT
 {10:10d}{1:10d}{4:10d}{0:10d}{3:10d}          {0:10d}{2:10d}{0:10d}{0:10d}
 {1.0:20.6f}{0.10:20.6f}{0.0:20.6f}                    {0:10d}{0:10d}
-{1000.0:20.6f}{100000.0:20.6f}{0.0:20.6f}{0.0:20.6f}{0:10d}{0:10d}
+{1000.0:20.6f}{100000.0:20.6f}{0.0:20.6f}{0.0:20.6f}{1:10d}{0:10d}
 {1.0:20.6f}{0.25:20.6f}{0.02:20.6f}{0.0:20.6f}{0.0:20.6f}
        000                             1            0.050000            0.000000            0.200000
          0         0            0.000000         2         0         0            0.000000         0"""
@@ -378,7 +517,7 @@ f"""/INTER/TYPE19/2
 TOP_SKIN_TO_FOIL_CONTACT
         20        10         4         0         3         1         0         2         0
             1.000000            0.100000            0.000000
-         1000.000000       100000.000000            0.000000            0.000000         0         0
+         1000.000000       100000.000000            0.000000            0.000000         1         0
             1.000000            0.200000            0.010000            0.000000            0.000000
        000                             0            0.050000            0.000000            0.200000
          0         0            0.000000         2         0         0"""
@@ -390,7 +529,7 @@ f"""/INTER/TYPE19/3
 BOT_SKIN_TO_FOIL_CONTACT
         20        11         4         0         3         1         0         2         0
             1.000000            0.100000            0.000000
-         1000.000000       100000.000000            0.000000            0.000000         0         0
+         1000.000000       100000.000000            0.000000            0.000000         1         0
             1.000000            0.200000            0.010000            0.000000            0.000000
        000                             0            0.050000            0.000000            0.200000
          0         0            0.000000         2         0         0"""
@@ -402,7 +541,7 @@ f"""/INTER/TYPE7/4
 HEX_FOIL_SELF_CONTACT
         20        20         4         0         3         1         0         2         0
             1.000000            0.100000            0.000000
-         1000.000000       100000.000000            0.000000            0.000000         0         0
+         1000.000000       100000.000000            0.000000            0.000000         1         0
             1.000000            0.200000            0.020000            0.000000            0.000000
        000                             1            0.050000            0.000000            0.200000
          0         0            0.000000         2         0         0"""
@@ -478,8 +617,8 @@ PUNCH_MASTER_GUIDE
    110 111         0         3"""
     )
 
-    # Imposed Velocity on Punch Master Node (Smooth Sinusoidal Ramp over 5 ms to v_punch = 400 mm/s)
-    t_ramp = 0.005
+    # Imposed Velocity on Punch Master Node (Smooth Sinusoidal Ramp over 10 ms to v_punch = 200 mm/s)
+    t_ramp = 0.010
     n_pts = 10
     ramp_lines = ["/FUNCT/1", "SMOOTH_RAMP_VELOCITY"]
     for i in range(n_pts + 1):
@@ -521,7 +660,7 @@ def generate_model_phase3():
     models_dir = base_dir / 'models' / 'phase3_full_mesoscale'
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Generating High-Fidelity Phase 3 Full Meso-Scale Model (v3.0)...")
+    print("Generating High-Fidelity Phase 3.1 Full Meso-Scale Model with Cohesive Zones & Hashin Failure...")
     deck, _ = build_phase3_deck()
 
     starter_path = models_dir / 'starter' / 'PUNCTURE_MESOFULL_0000.rad'
@@ -529,7 +668,7 @@ def generate_model_phase3():
     print(f"Starter deck written: {starter_path} ({starter_path.stat().st_size / 1024:.1f} KB)")
 
     engine_path = models_dir / 'engine' / 'PUNCTURE_MESOFULL_0001.rad'
-    deck.write_engine(engine_path, t_stop=0.0405, anim_dt=0.0005, th_dt=0.00002)
+    deck.write_engine(engine_path, t_stop=0.0865, anim_dt=0.0005, th_dt=0.00002, dt_noda=5.0e-8, dt_brick_del=2.0e-8, dt_shell_del=1.0e-9)
     print(f"Engine deck written:  {engine_path} ({engine_path.stat().st_size / 1024:.1f} KB)")
     print("Model generation completed successfully.")
 

@@ -20,6 +20,11 @@ def extract_fd(
 ) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
     df.columns = [c.strip().strip('"') for c in df.columns]
+    if 'EXTERNAL WORK' in df.columns:
+        df = df[df['EXTERNAL WORK'] < 1e8].copy()
+    if 'time' in df.columns and len(df) > 10:
+        if df['time'].iloc[-1] <= df['time'].iloc[-2]:
+            df = df.iloc[:-1].copy()
 
     time_s = df['time'].to_numpy()
 
