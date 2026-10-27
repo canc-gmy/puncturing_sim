@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-10-27
+### Added
+- **Cylindrical Polar Meshing (`polar_mesh_2d.py`):** Concentric rings matching punch radius ($r_p = 12.5\text{ mm}$) and aperture window ($r_{\text{ap}} = 15.0\text{ mm}$) with five radial element bands resolving the $2.5\text{ mm}$ shear clearance gap.
+- **Ply-by-Ply Solid Discretization:** 7 explicit solid element layers per skin ($0.333\text{ mm}$ per ply, 14 total skin layers across $[0/45/0/45/0/45/0]$ layup) using orthotropic solid properties (`/PROP/TYPE6`).
+- **Advanced Constitutive Models:**
+  - CFRP woven fabric: `/MAT/LAW25` (Chang-Chang) coupled with progressive damage and element deletion `/FAIL/CHANG`.
+  - Orthotropic crushable continuum: `/MAT/LAW28` with empirical plateau stress ($\sigma = 4.6\text{ MPa}$) and densification.
+  - Meso-scale aluminium foil: Johnson-Cook plasticity `/MAT/LAW2` with 5-card standard parameterization.
+- **Full Stroke Solver Execution:**
+  - Phase 1 Homogenized: Full $16.0\text{ mm}$ stroke ($16.2\text{ ms}$, 207,479 cycles) with zero mass error and clean element erosion.
+  - Phase 2 Meso-scale Hybrid: Full $16.0\text{ mm}$ stroke ($16.2\text{ ms}$, 193,446 cycles) resolving individual cell wall folding, buckling, and tearing.
+- **ISO 18571 / ASME V&V 10 Quantitative Validation:**
+  - Automated Sprague-Geers metric calculation ($M, P, C$) implemented in `src/validation/compare_fd_curves.py`.
+  - Phase 1 achieved magnitude error $M = -3.36\%$, phase error $P = 35.83\%$, and comprehensive error $C = 35.99\%$.
+  - Phase 2 achieved phase error $P = 30.82\%$, comprehensive error $C = 73.81\%$.
+- **Compiled PDF Documentation:**
+  - `reports/phase1_report.pdf` & `docs/reports/phase1_report.pdf` (Homogenized formulation, 844 KB).
+  - `reports/phase2_report.pdf` & `docs/reports/phase2_report.pdf` (Meso-scale hybrid formulation, 443 KB).
+  - Multi-model correlation comparison figure `docs/reports/correlation_overlay.png`.
+
 ## [1.0.0] - 2026-10-26
 ### Added
 - Complete end-to-end validated simulation suite for quasi-static shear puncture of CFRP/Al honeycomb sandwich panels.
