@@ -140,7 +140,7 @@ class RadiossDeck:
             f.write("/DT/NODA/CST\n")
             f.write("0.900000        1.000000E-07\n")
             f.write("/DT/BRICK/DEL\n")
-            f.write("0.900000        1.000000E-09\n")
+            f.write("0.900000        2.000000E-08\n")
             f.write("/DT/SHELL/DEL\n")
             f.write("0.900000        1.000000E-09\n")
             f.write("/END\n")

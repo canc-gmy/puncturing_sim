@@ -269,6 +269,11 @@ HONEYCOMB_CRUSH_CURVE
                  0.7                 4.6
                  0.8                30.0
                  0.9               100.0
+/FUNCT/29
+HONEYCOMB_SHEAR_CURVE
+                 0.0                3.48
+                 0.5                3.48
+                 1.0                3.48
 /MAT/LAW28/2
 HONEYCOMB_CORE_LAW28
         9.760000E-11
@@ -276,8 +281,8 @@ HONEYCOMB_CORE_LAW28
                 10.0               140.0               280.0
          0         0        28         1                 1.0                 1.0                 1.0
                  0.0                 0.0                 0.0
-         0         0         0         1                 1.0                 1.0                 1.0
-                 0.0                 0.0                 0.0"""
+         0        29        29         1                 1.0                 1.0                 1.0
+                 0.0                0.25                0.25"""
     )
 
     # Mat 4: Rigid Steel Punch (/MAT/LAW1)

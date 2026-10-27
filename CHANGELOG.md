@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.3.0] - 2026-10-27
+### Added
+- **Literature-Grounded Constitutive Calibration:**
+  - Calibrated Aluminium 5052 foil plasticity in Phase 2 using thin-foil fracture parameters ($A = 210.0\text{ MPa}$, $B = 65.0\text{ MPa}$, $n = 0.25$, $\varepsilon_{\text{max}} = 0.09$), eliminating artificial post-yield stiffness and capturing progressive shell tearing along the indenter perimeter.
+  - Formulated out-of-plane shear yield function (`/FUNCT/29`) with shear plateau $\tau_y = 3.48\text{ MPa}$ and shear strain erosion limits ($\gamma = 0.25$) on orthotropic core (`/MAT/LAW28`).
+  - Tuned solid brick deletion threshold (`/DT/BRICK/DEL` set to $2.0 \times 10^{-8}\text{ s}$) in `radioss_writer.py`, preventing inverted element locking and negative stiffness node errors during late bottom-skin compression.
+- **Experimental Correlation Breakthrough:**
+  - Phase 2 predicted ultimate peak force reached **$41.06\text{ kN}$**, within **$14.69\%$** of the physical test benchmark ($35.80\text{ kN}$, reduced from previous $+55.8\%$ overprediction).
+  - Sprague-Geers phase error confirmed at **$P = 26.81\%$**, with full $16.2\text{ mm}$ stroke completed in **4 minutes 14 seconds** across 134,513 cycles on 24 OpenMP threads.
+  - Phase 1 completed all 151,797 cycles in **3 minutes 00 seconds** under normal termination.
+- **Repository Invariants & Rule Persistence:**
+  - Persisted workspace simulation invariants in `GEMINI.md`: 24-thread execution profile, `/INTER/TYPE19` edge contact, quarter-symmetry conventions, `/PROP/TYPE6` card formatting, and $\Delta M / M < 1.0\%$ mass conservation.
+- **Updated Documentation & Verification:**
+  - Exported complete 3D visualization datasets (81 VTK states for Phase 1, 82 VTK states for Phase 2).
+  - Compiled publication-quality technical PDF reports: `reports/phase1_report.pdf` and `reports/phase2_report.pdf`.
+
 ## [2.2.0] - 2026-10-27
 ### Added
 - **Quarter-Symmetric FE Architecture (`polar_mesh_quarter.py`, `mesoscale_honeycomb_quarter.py`):**

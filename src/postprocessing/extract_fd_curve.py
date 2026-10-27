@@ -61,8 +61,8 @@ def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 1000.0, scale_fac
     # Scale reaction force and energy for quarter symmetry
     force_kn = force_kn * scale_factor
 
-    # 3. Detect complete puncture perforation from external work plateau
-    if 'EXTERNAL WORK' in df.columns:
+    # 3. Detect complete puncture perforation from external work plateau (if not direct force)
+    if not direct_force_found and 'EXTERNAL WORK' in df.columns:
         w = df['EXTERNAL WORK'].to_numpy()
         dw = np.diff(w, prepend=w[0])
         dd = np.diff(disp_mm, prepend=disp_mm[0])
