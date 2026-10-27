@@ -2,6 +2,7 @@
 OpenCourant Simulation Runner
 Sets up the runtime environment (Intel oneAPI, OpenCourant libraries, RAD_CFG_PATH)
 and executes the Starter and Engine solvers for Phase 1 or Phase 2 models.
+Configured for high-performance multi-threaded execution (default 24 threads).
 """
 
 from pathlib import Path
@@ -21,11 +22,13 @@ def find_opencourant_root() -> Path:
         return nested[0].parent
     raise FileNotFoundError(f"OpenCourant 'exec' directory not found inside {OC_DIR}")
 
-def setup_environment(oc_root: Path) -> dict:
+def setup_environment(oc_root: Path, num_threads: int = 24) -> dict:
     env = os.environ.copy()
     env["OPENCOURANT_PATH"] = str(oc_root)
     env["RAD_CFG_PATH"] = str(oc_root / "hm_cfg_files")
     env["KMP_STACKSIZE"] = "400m"
+    env["OMP_STACKSIZE"] = "400m"
+    env["OMP_NUM_THREADS"] = str(num_threads)
 
     paths_to_add = [
         str(oc_root / "exec"),
@@ -36,9 +39,9 @@ def setup_environment(oc_root: Path) -> dict:
     env["PATH"] = ";".join(paths_to_add) + ";" + env.get("PATH", "")
     return env
 
-def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, model_dir: Path = None, num_threads: int = 8):
+def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, model_dir: Path = None, num_threads: int = 24):
     oc_root = find_opencourant_root()
-    env = setup_environment(oc_root)
+    env = setup_environment(oc_root, num_threads=num_threads)
     exec_dir = oc_root / "exec"
 
     starter_exe = exec_dir / "starter_win64.exe"
@@ -80,7 +83,7 @@ def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, m
 
     # 1. Run Starter
     print("\n[Step 1/2] Running Starter...")
-    cmd_starter = [str(starter_exe), "-i", f"{model_prefix}_0000.rad", "-nspmd", "1", "-np", str(num_threads)]
+    cmd_starter = [str(starter_exe), "-i", f"{model_prefix}_0000.rad", "-nspmd", "1", "-np", "1"]
     ret_starter = subprocess.run(cmd_starter, cwd=run_dir, env=env)
     if ret_starter.returncode != 0:
         print(f"ERROR: Starter exited with code {ret_starter.returncode}")
@@ -95,7 +98,7 @@ def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, m
     print("Starter completed successfully.")
 
     # 2. Run Engine
-    print(f"\n[Step 2/2] Running Engine for {model_prefix}_0001.rad...")
+    print(f"\n[Step 2/2] Running Engine for {model_prefix}_0001.rad with {num_threads} threads...")
     cmd_engine = [str(engine_exe), "-i", f"{model_prefix}_0001.rad", "-nt", str(num_threads)]
     ret_engine = subprocess.run(cmd_engine, cwd=run_dir, env=env)
     if ret_engine.returncode != 0:
@@ -113,7 +116,8 @@ def run_simulation(model_prefix: str = "PUNCTURE_HOMOG", run_dir: Path = None, m
 
 if __name__ == '__main__':
     target = sys.argv[1] if len(sys.argv) > 1 else "phase1"
+    threads = int(sys.argv[2]) if len(sys.argv) > 2 else 24
     if target.lower() == "phase2":
-        run_simulation(model_prefix="PUNCTURE_MESO")
+        run_simulation(model_prefix="PUNCTURE_MESO", num_threads=threads)
     else:
-        run_simulation(model_prefix="PUNCTURE_HOMOG")
+        run_simulation(model_prefix="PUNCTURE_HOMOG", num_threads=threads)

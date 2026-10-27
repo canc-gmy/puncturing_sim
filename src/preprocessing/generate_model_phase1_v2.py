@@ -1,5 +1,5 @@
 """
-Phase 1: High-Fidelity Homogenized Core Sandwich Puncture Model Generator (v2.0)
+Phase 1: High-Fidelity Homogenized Core Sandwich Puncture Model Generator (v2.1)
 Features:
 - True cylindrical polar in-plane mesh aligned with Punch (r=12.5mm) and Aperture (r=15.0mm)
 - 5 radial ring subdivisions across the 2.5mm shear clearance (dr = 0.5mm)
@@ -8,7 +8,9 @@ Features:
 - Orthotropic solid property /PROP/TYPE6 (SOL_ORTH) with ply orientation Phi
 - Progressive damage /MAT/LAW25 (Chang-Chang) + /FAIL/CHANG
 - Non-linear crushable honeycomb core /MAT/LAW28 + /PROP/TYPE6
-- Element deletion upon failure (/DT/BRICK/DEL) for smooth penetration through 16mm stroke
+- Element deletion upon failure (/DT/BRICK/DEL) for smooth penetration through 16.2mm stroke
+- Quasi-static loading: indenter speed 100 mm/s with smooth sinusoidal acceleration ramp
+- 81 animation states (0.20 mm displacement per frame)
 """
 
 from pathlib import Path
@@ -22,8 +24,8 @@ from radioss_writer import RadiossDeck
 def build_phase1_v2_deck(
     punch_dia: float = 25.0,
     aperture_dia: float = 30.0,
-    v_punch: float = 1000.0, # mm/s = 1.0 m/s explicit quasi-static
-    t_end: float = 0.0162,    # 16 ms -> 16 mm displacement
+    v_punch: float = 100.0,   # mm/s = 0.1 m/s explicit quasi-static
+    t_end: float = 0.162,     # 162 ms -> 16.2 mm displacement at 100 mm/s
     nc_inplane: int = 8,
     n_core_layers: int = 10,
 ) -> tuple[RadiossDeck, dict]:
@@ -92,34 +94,31 @@ def build_phase1_v2_deck(
             if iz == 0 and r_nodes_2d[in2d] >= 14.999:
                 bot_aperture_clamped_nodes.append(node_id)
 
-            # Contact candidate nodes: all nodes in penetration cylinder r <= 13.0 mm and z >= 1.0 mm
-            if r_nodes_2d[in2d] <= 13.0:
+            # Contact candidate nodes: all nodes in penetration cylinder r <= 18.0 mm
+            if r_nodes_2d[in2d] <= 18.0:
                 candidate_contact_nodes.append(node_id)
 
             node_id += 1
 
-    print(f"Total sandwich nodes: {node_id - 1}")
-    print(f"Aperture clamped support nodes: {len(bot_aperture_clamped_nodes)}")
-    print(f"Candidate contact nodes: {len(candidate_contact_nodes)}")
-
     # 4. Define Parts
+    # Bottom skin plies (101..107)
     for p_idx in range(n_plies):
         part_id = 101 + p_idx
         prop_id = 101 + p_idx
         mat_id = 1 # LAW25 CFRP
         deck.parts[part_id] = (f"BOT_CFRP_PLY_{p_idx+1}", prop_id, mat_id)
 
-    # Core part
+    # Core part (2)
     deck.parts[2] = ("HONEYCOMB_CORE", 2, 2)
 
-    # Top skin plies
+    # Top skin plies (108..114)
     for p_idx in range(n_plies):
         part_id = 108 + p_idx
         prop_id = 108 + p_idx
         mat_id = 1 # LAW25 CFRP
         deck.parts[part_id] = (f"TOP_CFRP_PLY_{p_idx+1}", prop_id, mat_id)
 
-    # Punch part
+    # Punch part (4)
     deck.parts[4] = ("RIGID_STEEL_PUNCH", 4, 4)
 
     # 5. Create Solid Elements
@@ -127,10 +126,10 @@ def build_phase1_v2_deck(
     for iz in range(n_z_layers):
         if iz < n_plies:
             part_id = 101 + iz
-        elif iz < n_plies + n_core_layers:
-            part_id = 2
-        else:
+        elif iz >= n_plies + n_core_layers:
             part_id = 108 + (iz - (n_plies + n_core_layers))
+        else:
+            part_id = 2
 
         for q in quads_2d:
             n1_2d, n2_2d, n3_2d, n4_2d = q
@@ -146,12 +145,10 @@ def build_phase1_v2_deck(
             elem_id += 1
 
     total_bricks = sum(len(b) for b in deck.bricks_by_part.values())
-    print(f"Total sandwich solid elements: {total_bricks}")
+    print(f"Generated {total_bricks} 3D solid brick elements.")
 
-    # 6. Rigid Punch Modeling
-    z_top_max = z_layers[-1]
-    # Punch shells midplane: lower face (t=1.0mm, h=0.50mm) has 0.20mm initial clearance
-    z_punch_face = z_top_max + 0.50 + 0.20 # 19.662 + 0.70 = 20.362 mm (0.20mm initial clearance)
+    # 6. Punch Geometry (Rigid Cylindrical Shell Disc, dia=25mm)
+    z_punch_face = z_layers[-1] + 0.50 + 0.20 # 20.362 mm (0.20 mm initial clearance)
     punch_center_id = node_id
     deck.add_node(punch_center_id, 0.0, 0.0, z_punch_face)
     node_id += 1
@@ -167,7 +164,6 @@ def build_phase1_v2_deck(
         punch_nodes.append(node_id)
         node_id += 1
 
-    # Punch shell elements
     for q in quads_2d:
         n1_2d, n2_2d, n3_2d, n4_2d = q
         if all(nid in punch_node_map_2d for nid in [n1_2d, n2_2d, n3_2d, n4_2d]):
@@ -175,14 +171,13 @@ def build_phase1_v2_deck(
             p2 = punch_node_map_2d[n2_2d]
             p3 = punch_node_map_2d[n3_2d]
             p4 = punch_node_map_2d[n4_2d]
-            # Normal points in -Z toward plate (CW vertex order)
             deck.add_shell(elem_id, 4, [p1, p4, p3, p2])
             elem_id += 1
 
     total_shells = len(deck.shells_by_part[4])
-    print(f"Rigid punch shell elements: {total_shells} ({len(punch_nodes)} nodes)")
+    print(f"Generated rigid punch with {len(punch_nodes)} nodes and {total_shells} shell elements.")
 
-    # 7. Properties Setup (/PROP/TYPE6)
+    # 7. Properties & Materials Setup
     # Bottom skin plies (101..107)
     for p_idx in range(n_plies):
         prop_id = 101 + p_idx
@@ -198,7 +193,7 @@ BOT_CFRP_PLY_{p_idx+1}_PROP
          0         0         0"""
         )
 
-    # Honeycomb Core Property: /PROP/TYPE6/2/0
+    # Core property (2)
     deck.properties.append(
 """/PROP/TYPE6/2/0
 HONEYCOMB_CORE_PROP
@@ -225,7 +220,7 @@ TOP_CFRP_PLY_{p_idx+1}_PROP
          0         0         0"""
         )
 
-    # Punch Shell Property: /PROP/TYPE1/4/0 (Rigid steel shell, thickness 1.0 mm)
+    # Punch property (4)
     deck.properties.append(
 """/PROP/TYPE1/4/0
 PUNCH_SHELL_PROP
@@ -235,7 +230,7 @@ PUNCH_SHELL_PROP
     )
 
     # Materials
-    # Mat 1: CFRP Orthotropic with Chang-Chang progressive failure
+    # Mat 1: CFRP Orthotropic with Chang-Chang failure
     deck.materials.append(
 """/MAT/LAW25/1
 CFRP_T700_TWILL
@@ -254,7 +249,7 @@ CFRP_T700_TWILL
             1.000000         1.00000E-06         1         1            0.000000"""
     )
 
-    # Mat 2: Crushable Honeycomb Core (/MAT/LAW28) with experimental crushing plateau & densification
+    # Mat 2: Crushable Honeycomb Core (/MAT/LAW28)
     deck.materials.append(
 """/FUNCT/28
 HONEYCOMB_CRUSH_CURVE
@@ -282,7 +277,7 @@ RIGID_STEEL_PUNCH
     )
 
     # 8. Boundary Conditions, Contact & Kinematics
-    # Candidate contact slave nodes: nodes with r <= 28.0 mm
+    # Candidate contact slave nodes: nodes with r <= 18.0 mm
     contact_nodes_str = ""
     for i, nid in enumerate(candidate_contact_nodes):
         contact_nodes_str += f"{nid:10d}"
@@ -301,7 +296,7 @@ PUNCH_SURFACE
 4"""
     )
 
-    # TYPE7 Penalty Contact (Full 6-line block format)
+    # TYPE7 Penalty Contact
     deck.contacts.append(
 f"""/INTER/TYPE7/1
 PUNCH_TO_SANDWICH_CONTACT
@@ -352,17 +347,23 @@ SUPPORT_APERTURE_CLAMP
    111 111         0         2"""
     )
 
-    # Imposed Velocity on Punch Master Node
+    # Imposed Velocity on Punch Master Node (Smooth Sinusoidal Ramp over 10 ms)
     deck.node_groups.append(
 f"""/GRNOD/NODE/3/0
 PUNCH_MASTER_NODE_SET
 {punch_center_id:10d}"""
     )
-    deck.bcs.append(
-f"""/FUNCT/1
-RAMP_VELOCITY
-                 0.0      {-v_punch:14.5f}
-                 1.0      {-v_punch:14.5f}
+
+    t_ramp = 0.010
+    n_pts = 10
+    ramp_lines = ["/FUNCT/1", "SMOOTH_RAMP_VELOCITY"]
+    for i in range(n_pts + 1):
+        t_i = i * (t_ramp / n_pts)
+        val = -v_punch * 0.5 * (1.0 - np.cos(np.pi * i / n_pts))
+        ramp_lines.append(f"{t_i:20.6f}{val:20.6f}")
+    ramp_lines.append(f"{1.0:20.6f}{-v_punch:20.6f}")
+
+    deck.bcs.append("\n".join(ramp_lines) + f"""
 /IMPVEL/1
 IMPOSED_PUNCH_VELOCITY
          1         Z         0         0         3         0         0
@@ -395,10 +396,10 @@ if __name__ == '__main__':
     starter_path = base_dir / 'models' / 'phase1_homogenized' / 'starter' / 'PUNCTURE_HOMOG_0000.rad'
     engine_path = base_dir / 'models' / 'phase1_homogenized' / 'engine' / 'PUNCTURE_HOMOG_0001.rad'
 
-    print("Generating High-Fidelity Phase 1 Polar Composite Model (v2.0)...")
+    print("Generating High-Fidelity Phase 1 Polar Composite Model (v2.1)...")
     deck, stats = build_phase1_v2_deck()
     deck.write_starter(starter_path)
-    deck.write_engine(engine_path, t_stop=stats['t_end'])
+    deck.write_engine(engine_path, t_stop=stats['t_end'], anim_dt=0.002, th_dt=0.0001)
 
     print(f"Starter deck written: {starter_path} ({starter_path.stat().st_size / 1024:.1f} KB)")
     print(f"Engine deck written:  {engine_path} ({engine_path.stat().st_size / 1024:.1f} KB)")

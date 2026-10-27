@@ -1,11 +1,14 @@
 """
-OpenCourant / OpenRadioss Input Deck (.rad) Writer
-Provides clean, formatted generation of Starter (_0000.rad) and Engine (_0001.rad) files.
+OpenRadioss / OpenCourant File Writer Utility (v2.1)
+Writes conforming .rad starter and engine input decks with 20-column numerical precision.
+Supports 3D Bricks (/BRICK), 2D Shells (/SHELL), Properties (/PROP), Materials (/MAT),
+Surfaces (/SURF), Interfaces (/INTER), Boundary Conditions (/BCS, /IMPVEL, /RBODY),
+and Time History outputs (/TH).
 """
 
 from pathlib import Path
-from dataclasses import dataclass
-from collections import defaultdict
+from dataclasses import dataclass, field
+import numpy as np
 
 @dataclass
 class Node:
@@ -15,41 +18,44 @@ class Node:
     z: float
 
 @dataclass
-class Brick8:
+class BrickElem:
     id: int
-    n: list[int]  # 8 node IDs
+    part_id: int
+    n: list[int] # 8 nodes
 
 @dataclass
-class Shell4:
+class ShellElem:
     id: int
-    n: list[int]  # 4 node IDs
+    part_id: int
+    n: list[int] # 4 nodes
 
 class RadiossDeck:
-    def __init__(self, title: str = "PUNCTURE_HOMOG"):
+    def __init__(self, title: str = "PUNCTURE_SIM"):
         self.title = title
         self.nodes: dict[int, Node] = {}
-        self.bricks_by_part: dict[int, list[Brick8]] = defaultdict(list)
-        self.shells_by_part: dict[int, list[Shell4]] = defaultdict(list)
-        self.parts: dict[int, tuple[str, int, int]] = {}  # part_id -> (name, prop_id, mat_id)
-        self.materials: list[str] = []
+        self.parts: dict[int, tuple[str, int, int]] = {} # part_id -> (name, prop_id, mat_id)
+        self.bricks_by_part: dict[int, list[BrickElem]] = {}
+        self.shells_by_part: dict[int, list[ShellElem]] = {}
         self.properties: list[str] = []
+        self.materials: list[str] = []
         self.node_groups: list[str] = []
         self.surfaces: list[str] = []
         self.contacts: list[str] = []
         self.bcs: list[str] = []
         self.time_histories: list[str] = []
 
-    def add_node(self, node_id: int, x: float, y: float, z: float) -> int:
-        self.nodes[node_id] = Node(node_id, float(x), float(y), float(z))
-        return node_id
+    def add_node(self, nid: int, x: float, y: float, z: float):
+        self.nodes[nid] = Node(nid, x, y, z)
 
-    def add_brick(self, elem_id: int, part_id: int, node_ids: list[int]):
-        assert len(node_ids) == 8
-        self.bricks_by_part[part_id].append(Brick8(elem_id, node_ids))
+    def add_brick(self, eid: int, part_id: int, nids: list[int]):
+        if part_id not in self.bricks_by_part:
+            self.bricks_by_part[part_id] = []
+        self.bricks_by_part[part_id].append(BrickElem(eid, part_id, nids))
 
-    def add_shell(self, elem_id: int, part_id: int, node_ids: list[int]):
-        assert len(node_ids) == 4
-        self.shells_by_part[part_id].append(Shell4(elem_id, node_ids))
+    def add_shell(self, eid: int, part_id: int, nids: list[int]):
+        if part_id not in self.shells_by_part:
+            self.shells_by_part[part_id] = []
+        self.shells_by_part[part_id].append(ShellElem(eid, part_id, nids))
 
     def write_starter(self, filepath: Path):
         filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -94,8 +100,8 @@ class RadiossDeck:
                     f.write(f"{s.id:10d}" + "".join(f"{n:10d}" for n in s.n) + "\n")
 
             # Node Groups
-            for grnod in self.node_groups:
-                f.write(grnod + "\n")
+            for grp in self.node_groups:
+                f.write(grp + "\n")
 
             # Surfaces
             for surf in self.surfaces:
@@ -115,7 +121,7 @@ class RadiossDeck:
 
             f.write("/END\n")
 
-    def write_engine(self, filepath: Path, t_stop: float = 0.016, anim_dt: float = 0.0005, th_dt: float = 0.00005):
+    def write_engine(self, filepath: Path, t_stop: float = 0.162, anim_dt: float = 0.002, th_dt: float = 0.0001):
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w') as f:
             f.write("#RADIOSS ENGINE\n")
@@ -124,7 +130,7 @@ class RadiossDeck:
             f.write(f"{t_stop:16.6f}\n")
             f.write(f"/ANIM/DT\n")
             f.write(f"0.0 {anim_dt:16.6f}\n")
-            f.write("/PRINT/-100\n")
+            f.write("/PRINT/-500\n")
             f.write("/ANIM/VECT/DISP\n")
             f.write("/ANIM/VECT/CONT\n")
             f.write("/ANIM/BRICK/TENS/STRESS/ALL\n")
