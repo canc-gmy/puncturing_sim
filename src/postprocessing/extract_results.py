@@ -60,5 +60,7 @@ if __name__ == '__main__':
     target = sys.argv[1] if len(sys.argv) > 1 else "phase1"
     if target.lower() == "phase2":
         convert_results(BASE_DIR / "results" / "phase2_mesoscale", model_prefix="PUNCTURE_MESO")
+    elif target.lower() == "phase3":
+        convert_results(BASE_DIR / "results" / "phase3_full_mesoscale", model_prefix="PUNCTURE_MESOFULL")
     else:
         convert_results(BASE_DIR / "results" / "phase1_homogenized", model_prefix="PUNCTURE_HOMOG")

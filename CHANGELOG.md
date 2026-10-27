@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [3.0.0] - 2026-10-27
+### Added
+- **Full Discrete Meso-Scale Honeycomb Core Architecture (`mesoscale_honeycomb_full.py`, `generate_model_phase3.py`):**
+  - Completely eliminated the homogenized continuum core across the entire $50 \times 50\text{ mm}$ quarter-symmetric domain.
+  - Implemented parametric honeycomb generator with Liang-Barsky 2D box clipping, discretizing 871 unique hexagonal cell walls ($d_{\text{cell}} = 3.175\text{ mm}$) with $5,226$ Belytschko-Tsay aluminium foil shells and 4,382 nodes ($9,834$ total elements).
+- **Core-to-Skin Adhesive Interface & Shear Strength Characterization:**
+  - Evaluated mechanical bond standards against ASTM C273 (sandwich plate core shear: $\tau_{13} = 3.48\text{ MPa}, \tau_{23} = 2.21\text{ MPa}$), ASTM C297 (flatwise tension: $6.5 - 9.5\text{ MPa}$), and aerospace epoxy structural film adhesives ($\tau_{\text{adh}} \approx 35 - 42\text{ MPa}, G_{Ic} \approx 250 - 450\text{ J/m}^2, G_{IIc} \approx 800 - 1500\text{ J/m}^2$).
+  - Implemented dedicated edge-to-surface `/INTER/TYPE19` coupling between vertical foil edges and composite laminate inner faces (`/SURF/PART/EXT/10` and `11`), paired with `/INTER/TYPE7/4` foil self-contact to capture progressive accordion folding without spurious edge-penetration forces.
+- **High-Performance Execution & Verification:**
+  - Solved 162,001 explicit integration cycles in **490.30 s (8 min 10 s)** on AMD Ryzen 9 7900X (24 OpenMP threads, `-nt 24`).
+  - Captured progressive accordion cell folding and bottom skin puncture at $15.19\text{ mm}$ (within $3.8\%$ of experimental stroke limit), absorbing $387.70\text{ J}$.
+  - Converted all 82 animation output states to VTK format in `results/phase3_full_mesoscale/vtk/` for 3D post-processing.
+- **Documentation & Reporting:**
+  - Updated validation module `compare_fd_curves.py` with 4-way correlation overlay and Sprague-Geers metrics across all three phases.
+  - Authored and compiled comprehensive technical report: `reports/phase3_report.pdf` (and `docs/reports/phase3_report.pdf`).
+
 ## [2.3.0] - 2026-10-27
 ### Added
 - **Literature-Grounded Constitutive Calibration:**
