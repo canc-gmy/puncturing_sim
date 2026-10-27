@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [2.2.0] - 2026-10-27
+### Added
+- **Quarter-Symmetric FE Architecture (`polar_mesh_quarter.py`, `mesoscale_honeycomb_quarter.py`):**
+  - Reduced computational domain by $4\times$ ($x \ge 0, y \ge 0$, $50 \times 50\text{ mm}$), dramatically speeding up simulation cycle while preserving physical boundary conditions.
+  - Formulated exact quarter boundary constraints: $X$-symmetry on $x=0$ (`100 011`), $Y$-symmetry on $y=0$ (`010 101`), fully fixed circular aperture support on $z=0, r \ge 15.0\text{ mm}$ (`111 111`), and rigid punch master node guided purely in $Z$ (`110 111`).
+  - Implemented automatic $4.0\times$ reaction force and energy scaling in `extract_fd_curve.py` for direct correlation against full experimental benchmarks.
+- **Edge-to-Surface Penalty Contact (`/INTER/TYPE19`):**
+  - Resolved the cell-wall mesh explosion bug that occurred upon initial punch contact under standard `/INTER/TYPE7` node-to-surface definitions.
+  - `/INTER/TYPE19` (`Iedge = 1`, `INACTIV = 1`) treats laminate inner faces as master surfaces and foil shell edges as secondary lines, enforcing normal contact penalties strictly in the vertical $\pm Z$ direction without spurious transverse ejection forces.
+  - Paired with `/INTER/TYPE7/4` self-contact for foil progressive accordion folding.
+- **Rapid Parametric Calibration & Safe Mass Scaling:**
+  - Tuned kinematics with $v = 1000\text{ mm/s}$ and $2\text{ ms}$ smooth ramp, coupled with safe nodal mass scaling (`/DT/NODA/CST` at $1.0\times 10^{-7}\text{ s}$).
+  - Achieved mass error of only $0.14\%$ (well below the $1.0\%$ industry limit).
+  - Reduced wallclock execution time by $\sim 10\times$:
+    - Phase 1 Homogenized: **96.44 s (1 min 36 s)** across 85,990 cycles on 24 OpenMP threads.
+    - Phase 2 Meso-Scale: **322.38 s (5 min 22 s)** across 162,001 cycles on 24 OpenMP threads.
+- **Constitutive Property Bug Fixes:**
+  - Rectified field alignment in `/PROP/TYPE6` where an extra line shifted the ply angle onto Card 5 (`deltaT_min`), which previously caused the starter to set `BRICK MINIMUM TIME STEP = 45.0 s` on plies 2, 4, 6 and delete them at cycle 0.
+  - Adjusted `/DT/BRICK/DEL` and `/DT/SHELL/DEL` thresholds to $1.0\times 10^{-9}\text{ s}$ to prevent premature element erosion at initial integration steps.
+- **Updated Documentation & Verification:**
+  - Quantitative Sprague-Geers correlation metrics: Phase 1 ($M = 40.26\%, P = 32.88\%, C = 51.97\%$), Phase 2 ($F_{\text{peak}} = 55.79\text{ kN}, E_{\text{abs}} = 427.13\text{ J}$).
+  - Compiled publication-quality technical PDF reports: `reports/phase1_report.pdf` and `reports/phase2_report.pdf`.
+
 ## [2.1.0] - 2026-10-27
 ### Added
 - **24-Thread Parallel Solver Execution:** Updated `run_simulation.py` with OpenMP 24-worker configuration (`-nt 24`, `OMP_NUM_THREADS=24`, `KMP_STACKSIZE=400m`) fully leveraging the 24 logical processors of AMD Ryzen 9 7900X.

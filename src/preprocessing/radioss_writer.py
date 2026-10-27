@@ -1,5 +1,5 @@
 """
-OpenRadioss / OpenCourant File Writer Utility (v2.1)
+OpenRadioss / OpenCourant File Writer Utility (v2.2)
 Writes conforming .rad starter and engine input decks with 20-column numerical precision.
 Supports 3D Bricks (/BRICK), 2D Shells (/SHELL), Properties (/PROP), Materials (/MAT),
 Surfaces (/SURF), Interfaces (/INTER), Boundary Conditions (/BCS, /IMPVEL, /RBODY),
@@ -121,7 +121,7 @@ class RadiossDeck:
 
             f.write("/END\n")
 
-    def write_engine(self, filepath: Path, t_stop: float = 0.162, anim_dt: float = 0.002, th_dt: float = 0.0001):
+    def write_engine(self, filepath: Path, t_stop: float = 0.0162, anim_dt: float = 0.0002, th_dt: float = 0.00001):
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w') as f:
             f.write("#RADIOSS ENGINE\n")
@@ -138,9 +138,9 @@ class RadiossDeck:
             f.write(f"/TFILE\n")
             f.write(f"{th_dt:16.6f}\n")
             f.write("/DT/NODA/CST\n")
-            f.write("0.900000        2.500000E-08\n")
+            f.write("0.900000        1.000000E-07\n")
             f.write("/DT/BRICK/DEL\n")
-            f.write("0.900000        1.000000E-08\n")
+            f.write("0.900000        1.000000E-09\n")
             f.write("/DT/SHELL/DEL\n")
-            f.write("0.900000        1.000000E-08\n")
+            f.write("0.900000        1.000000E-09\n")
             f.write("/END\n")

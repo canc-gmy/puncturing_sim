@@ -1,8 +1,8 @@
 """
-Force-Displacement Extraction Module
+Force-Displacement Extraction Module (v2.2)
 Extracts indenter displacement and force history from OpenCourant T01 output,
 computing both contact reaction force and energy-gradient work force.
-Properly accounts for solver unit conventions and element rupture perforation.
+Supports quarter-symmetry 4x scaling and quasi-static velocity kinematics.
 """
 
 from pathlib import Path
@@ -11,7 +11,7 @@ import numpy as np
 import sys
 from scipy.signal import savgol_filter
 
-def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 100.0) -> pd.DataFrame:
+def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 1000.0, scale_factor: float = 4.0) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
     df.columns = [c.strip().strip('"') for c in df.columns]
 
@@ -58,6 +58,9 @@ def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 100.0) -> pd.Data
                 force_n[i] = force_n[i-1]
         force_kn = force_n / 1000.0
 
+    # Scale reaction force and energy for quarter symmetry
+    force_kn = force_kn * scale_factor
+
     # 3. Detect complete puncture perforation from external work plateau
     if 'EXTERNAL WORK' in df.columns:
         w = df['EXTERNAL WORK'].to_numpy()
@@ -88,7 +91,7 @@ def extract_fd(csv_path: Path, out_csv: Path, v_punch: float = 100.0) -> pd.Data
         force_kn_smooth = force_kn
 
     force_n_smooth = force_kn_smooth * 1000.0
-    internal_energy_j = df['INTERNAL ENERGY'].to_numpy() / 1000.0 if 'INTERNAL ENERGY' in df.columns else np.zeros_like(disp_mm)
+    internal_energy_j = (df['INTERNAL ENERGY'].to_numpy() / 1000.0 * scale_factor) if 'INTERNAL ENERGY' in df.columns else np.zeros_like(disp_mm)
 
     result_df = pd.DataFrame({
         'displacement_mm': np.round(disp_mm, 4),
