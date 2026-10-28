@@ -503,10 +503,10 @@ ALL_HEX_FOIL_NODES
     deck.contacts.append(
 f"""/INTER/TYPE7/1
 PUNCH_TO_SANDWICH_CONTACT
-{10:10d}{1:10d}{4:10d}{0:10d}{3:10d}          {0:10d}{2:10d}{0:10d}{0:10d}
-{1.0:20.6f}{0.10:20.6f}{0.0:20.6f}                    {0:10d}{0:10d}
-{1000.0:20.6f}{100000.0:20.6f}{0.0:20.6f}{0.0:20.6f}{1:10d}{0:10d}
-{1.0:20.6f}{0.25:20.6f}{0.02:20.6f}{0.0:20.6f}{0.0:20.6f}
+{10:10d}{1:10d}{1:10d}{0:10d}{3:10d}{2:10d}{0:10d}{2:10d}{0:10d}{0:10d}
+{1.0:20.6f}{0.10:20.6f}{0.0:20.6f}                    {1:10d}{0:10d}
+{100.0:20.6f}{2500.0:20.6f}{0.0:20.6f}{2.0E-08:20.6e}{1:10d}{0:10d}
+{2500.0:20.6f}{0.25:20.6f}{0.02:20.6f}{0.0:20.6f}{0.0:20.6f}
        000                             1            0.050000            0.000000            0.200000
          0         0            0.000000         2         0         0            0.000000         0"""
     )
@@ -668,7 +668,17 @@ def generate_model_phase3():
     print(f"Starter deck written: {starter_path} ({starter_path.stat().st_size / 1024:.1f} KB)")
 
     engine_path = models_dir / 'engine' / 'PUNCTURE_MESOFULL_0001.rad'
-    deck.write_engine(engine_path, t_stop=0.0865, anim_dt=0.0005, th_dt=0.00002, dt_noda=5.0e-8, dt_brick_del=2.0e-8, dt_shell_del=1.0e-9)
+    deck.write_engine(
+        engine_path,
+        t_stop=0.0500,
+        anim_dt=0.0005,
+        th_dt=0.00002,
+        dt_noda=4.8e-8,
+        dt_inter_del=2.0e-8,
+        dt_brick_del=2.0e-8,
+        dt_shell_del=1.0e-9,
+        rfile_cycle=20000
+    )
     print(f"Engine deck written:  {engine_path} ({engine_path.stat().st_size / 1024:.1f} KB)")
     print("Model generation completed successfully.")
 

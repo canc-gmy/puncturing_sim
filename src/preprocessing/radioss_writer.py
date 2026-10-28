@@ -132,9 +132,11 @@ class RadiossDeck:
         t_stop: float = 0.0865,
         anim_dt: float = 0.0005,
         th_dt: float = 0.00002,
-        dt_noda: float = 5.0e-8,
+        dt_noda: float = 4.5e-8,
+        dt_inter_del: float = 2.0e-8,
         dt_brick_del: float = 2.0e-8,
-        dt_shell_del: float = 1.0e-9
+        dt_shell_del: float = 1.0e-9,
+        rfile_cycle: int = 20000
     ):
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, 'w') as f:
@@ -145,6 +147,9 @@ class RadiossDeck:
             f.write(f"/ANIM/DT\n")
             f.write(f"0.0 {anim_dt:16.6f}\n")
             f.write("/PRINT/-500\n")
+            if rfile_cycle > 0:
+                f.write("/RFILE\n")
+                f.write(f"{rfile_cycle:10d}\n")
             f.write("/ANIM/VECT/DISP\n")
             f.write("/ANIM/VECT/CONT\n")
             f.write("/ANIM/BRICK/TENS/STRESS/ALL\n")
@@ -153,8 +158,13 @@ class RadiossDeck:
             f.write("/ANIM/ELEM/ENERGY\n")
             f.write(f"/TFILE\n")
             f.write(f"{th_dt:16.6f}\n")
+            f.write("/STOP\n")
+            f.write("1.000000E+30    0.150000        10.00000         1         1\n")
             f.write("/DT/NODA/CST\n")
             f.write(f"0.900000        {dt_noda:16.6E}\n")
+            if dt_inter_del > 0:
+                f.write("/DT/INTER/DEL\n")
+                f.write(f"0.900000        {dt_inter_del:16.6E}\n")
             f.write("/DT/BRICK/DEL\n")
             f.write(f"0.900000        {dt_brick_del:16.6E}\n")
             f.write("/DT/SHELL/DEL\n")

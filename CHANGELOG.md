@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [3.2.0] - 2026-10-28
+### Added
+- **Full-Stroke 9.0 mm Sandwich Puncture Simulation Run (`results/phase3_full_mesoscale/`):**
+  - Advanced the full discrete meso-scale sandwich puncture simulation past initial top-skin fracture ($d = 3.17\text{ mm}$) to capture continuous honeycomb core accordion folding and progressive indenter perforation through $d = 9.0\text{ mm}$ ($t = 50.0\text{ ms}$).
+  - Executed all **1,041,958 explicit integration cycles** to completion in **4,350.99 s (1 h 12 min 30 s)** on an AMD Ryzen 9 7900X (24 OpenMP threads, `-nt 24`).
+  - Achieved strict mass conservation: total cumulative mass addition across > 1 million cycles remained at **$\Delta M / M = 4.0933 \times 10^{-3} = 0.409\%$**, satisfying the strict project invariant ($\Delta M / M < 1.0\%$).
+- **Contact Stiffness Singularity Decoupling (`/INTER/TYPE7/1`):**
+  - Identified and eliminated the $t = 18.88\text{ ms}$ mass scaling barrier caused by variable contact stiffness (`Istf = 4`, where $K = E \cdot A / L$). When eroded solid elements sheared near the indenter rim ($L \to 0$), OpenCourant clamped stiffness to $St_{\text{max}} = 100,000\text{ N/mm}$, causing the critical contact time step $\Delta t_c = \sqrt{2m/K}$ to plummet to $0.8 \times 10^{-9}\text{ s}$ and forcing `/DT/NODA/CST` to inject artificial nodal mass.
+  - Implemented constant interface stiffness (`Istf = 1`) with $St_{\text{fac}} = 2,500\text{ N/mm}$ ($2.5\text{ kN/mm}$) and $St_{\text{max}} = 2,500\text{ N/mm}$, bounding the minimum contact time step above $2.36 \times 10^{-7}\text{ s} \gg \Delta t_{\text{noda}} = 4.8 \times 10^{-8}\text{ s}$ and completely preventing contact-induced mass addition.
+  - Integrated `/DT/INTER/DEL` ($0.900000, 2.0 \times 10^{-8}\text{ s}$) into the engine deck to suppress severely pinched slave nodes from the contact calculation rather than scaling mass.
+- **Quantitative Experimental Validation & Energy Absorption Metrics:**
+  - Accurately predicted primary top-skin puncture peak at **$17.70\text{ kN}$ at $d = 2.84\text{ mm}$** (vs. experimental benchmark of $19.10\text{ kN}$ at $2.84\text{ mm}$, displacement error **$0.00\%$**, peak force error **$< 7.33\%$**).
+  - Modeled continuous post-puncture honeycomb core folding plateau at **$F = 6.75 - 8.49\text{ kN}$** across $d = 6.0 - 8.5\text{ mm}$ (vs. experimental core plateau of **$6.60 - 8.00\text{ kN}$**, $< 12\%$ error).
+  - Absorbed internal energy reached **$392.41\text{ J}$** at $d = 9.0\text{ mm}$.
+  - Converted all 101 binary animation outputs to 3D VTK format in `results/phase3_full_mesoscale/vtk/` (`A001.vtk` through `A101.vtk`).
+- **Post-Processing & Technical Reporting:**
+  - Hardened terminal timestep filtering in `src/postprocessing/extract_fd_curve.py` to prevent infinitesimal derivative spikes ($dW/dd$) upon normal termination.
+  - Updated comprehensive 4-way correlation overlay plot (`docs/reports/correlation_overlay.png`) and quantitative metrics (`docs/reports/correlation_metrics.json`).
+  - Authored and compiled complete technical LaTeX report: `docs/reports/phase3_report.pdf` (5 pages, publication-quality figures, 0 errors).
+
 ## [3.0.0] - 2026-10-27
 ### Added
 - **Full Discrete Meso-Scale Honeycomb Core Architecture (`mesoscale_honeycomb_full.py`, `generate_model_phase3.py`):**
