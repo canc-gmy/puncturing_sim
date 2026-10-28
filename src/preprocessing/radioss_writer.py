@@ -134,7 +134,7 @@ class RadiossDeck:
         th_dt: float = 0.00002,
         dt_noda: float = 4.5e-8,
         dt_inter_del: float = 2.0e-8,
-        dt_brick_del: float = 2.0e-8,
+        dt_brick_del: float = 1.0e-9,
         dt_shell_del: float = 1.0e-9,
         rfile_cycle: int = 20000
     ):

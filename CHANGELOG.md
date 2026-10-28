@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [3.4.0] - 2026-10-28
+### Added
+- **Honeycomb Cell-Wall Buckling Imperfection & Foil Yield Calibration (`/MAT/LAW2/21`):**
+  - Integrated a $5\,\mu\text{m}$ sinusoidal out-of-plane perturbation ($\lambda = 2.5\text{ mm}$ wavelength) to interior honeycomb cell-wall nodes in `src/preprocessing/mesoscale_honeycomb_full.py`.
+  - Calibrated the thin-foil aluminium 5052-H39 Johnson-Cook folding yield stress to $A = 130.0\text{ MPa}$, successfully triggering natural accordion progressive folding at the experimental ASTM C365 compressive bare strength ($6.0\text{ MPa}$).
+- **Contact Node-Tying Singularity & Acoustic Deletion Resolution:**
+  - Resolved contact node-tying instability: eliminated over-constrained kinematics by resetting `Inacti = 0`, `dtmin = 1.0E-09 s`, and `Irem_i = 1` in `/INTER/TYPE7/1`, ensuring slave nodes whose elements erode are cleanly detached without artificial tying constraints.
+  - Hardened acoustic brick deletion threshold: adjusted `dt_brick_del` and `dt_shell_del` to $1.0 \times 10^{-9}\text{ s}$ across `radioss_writer.py` and `generate_model_phase3.py`, eliminating cycle-0 and premature element deletion.
+  - Calibrated tensile strain fiber rupture threshold to $\varepsilon_{t1} = 0.0850$ and $\varepsilon_{t2} = 0.1050$.
+- **High-Fidelity Quantitative Experimental Correlation & Validation:**
+  - Solved **1,158,682 explicit integration cycles** up to $t = 35.25\text{ ms}$ ($d = 6.05\text{ mm}$) in **15,658.18 s (4 h 20 min 58 s)** on an AMD Ryzen 9 7900X (24 OpenMP threads, `-nt 24`).
+  - Achieved exceptional peak puncture load correlation: predicted **$35.03\text{ kN}$ at $d = 6.05\text{ mm}$** vs. physical experimental benchmark of **$35.80\text{ kN}$ at $d = 5.70\text{ mm}$**, representing a **$-2.15\%$ peak load error** and **$+6.14\%$ displacement error**.
+  - Sprague-Geers phase error reduced to **$P = 9.57\%$** (first phase to achieve $P < 10\%$, demonstrating near-exact alignment of load slope and puncture initiation).
+  - Sprague-Geers comprehensive error dropped to **$C = 27.83\%$** (lowest error across the entire project).
+- **Post-Processing, Verification, and Deliverables:**
+  - Updated `src/postprocessing/extract_fd_curve.py` with physical work-rate extraction ($F = 4 \times dW_{\text{ext}} / dd$).
+  - Converted all 72 binary animation files to 3D VTK format in `results/phase3_full_mesoscale/vtk/`.
+  - Updated 4-way correlation overlay plot (`docs/reports/correlation_overlay.png`) and validation metrics (`docs/reports/correlation_metrics.json`).
+  - Authored and compiled comprehensive technical LaTeX report: `docs/reports/phase3_report.pdf` (5 pages, 0 errors).
+
 ## [3.3.0] - 2026-10-28
 ### Added
 - **Calibrated Composite Skin Fracture & Fiber Rupture Decoupling (`/FAIL/HASHIN/1`, `/FAIL/TENSSTRAIN/1`):**

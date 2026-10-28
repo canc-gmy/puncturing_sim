@@ -134,8 +134,8 @@ if __name__ == '__main__':
     elif target.lower() == "phase3":
         t01_csv = base_dir / "results" / "phase3_full_mesoscale" / "PUNCTURE_MESOFULLT01.csv"
         fd_out = base_dir / "results" / "phase3_full_mesoscale" / "simulation_fd.csv"
-        use_work = False
-        scale = 1.0
+        use_work = True
+        scale = 4.0
     else:
         t01_csv = base_dir / "results" / "phase1_homogenized" / "PUNCTURE_HOMOGT01.csv"
         fd_out = base_dir / "results" / "phase1_homogenized" / "simulation_fd.csv"

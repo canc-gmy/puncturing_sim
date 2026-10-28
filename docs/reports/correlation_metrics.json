@@ -35,18 +35,18 @@
     }
   },
   "phase3_full_mesoscale": {
-    "peak_force_kN": 42.54,
-    "displacement_at_peak_mm": 8.0,
-    "peak_force_error_pct": 18.82,
-    "absorbed_energy_J": 168.52,
-    "energy_error_pct": 25.29,
+    "peak_force_kN": 35.03,
+    "displacement_at_peak_mm": 6.05,
+    "peak_force_error_pct": 2.15,
+    "absorbed_energy_J": 88.15,
+    "energy_error_pct": 60.92,
     "sprague_geers": {
-      "sprague_geers_M_pct": 24.32,
-      "sprague_geers_P_pct": 22.13,
-      "sprague_geers_C_pct": 32.88,
-      "M": 0.2432,
-      "P": 0.2213,
-      "C": 0.3288
+      "sprague_geers_M_pct": -26.14,
+      "sprague_geers_P_pct": 9.57,
+      "sprague_geers_C_pct": 27.83,
+      "M": -0.2614,
+      "P": 0.0957,
+      "C": 0.2783
     }
   }
 }

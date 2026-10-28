@@ -181,7 +181,13 @@ def discretize_full_quarter_cell_walls(
                     nid = coord_to_node_id[c_key]
                 else:
                     nid = node_id
-                    nodes[nid] = (x, y, z)
+                    # Add tiny 5 um out-of-plane perturbation on interior foil nodes to trigger natural accordion folding
+                    if z_min < z < z_max and x > 1e-4 and y > 1e-4:
+                        dx_imperf = 0.005 * np.sin(2.0 * np.pi * (z - z_min) / 2.5) * np.sin(x / 3.175)
+                        dy_imperf = 0.005 * np.sin(2.0 * np.pi * (z - z_min) / 2.5) * np.cos(y / 3.175)
+                        nodes[nid] = (x + dx_imperf, y + dy_imperf, z)
+                    else:
+                        nodes[nid] = (x, y, z)
                     coord_to_node_id[c_key] = nid
                     node_id += 1
 
