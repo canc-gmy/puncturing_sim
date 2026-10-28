@@ -232,8 +232,34 @@ def build_phase3_deck(
             deck.add_shell(elem_id, 4, [p1, p4, p3, p2])
             elem_id += 1
 
+    # Add punch cylindrical skirt (8.0 mm tall, 4 levels) along rim at r = 12.5 mm
+    rim_nodes_2d = [in2d for in2d in punch_nodes_2d_idx if abs(r_nodes_2d[in2d] - 12.5) < 1e-3]
+    thetas = [np.arctan2(nodes_2d[in2d, 1], nodes_2d[in2d, 0]) for in2d in rim_nodes_2d]
+    sorted_rim_2d = [x for _, x in sorted(zip(thetas, rim_nodes_2d))]
+
+    h_skirt_levels = [2.0, 4.0, 6.0, 8.0]
+    skirt_rings = [[punch_node_map_2d[in2d] for in2d in sorted_rim_2d]]
+    for h_off in h_skirt_levels:
+        cur_ring = []
+        for in2d in sorted_rim_2d:
+            x, y = nodes_2d[in2d]
+            deck.add_node(node_id, x, y, z_punch_face + h_off)
+            cur_ring.append(node_id)
+            punch_nodes.append(node_id)
+            node_id += 1
+        skirt_rings.append(cur_ring)
+
+    for k in range(len(skirt_rings) - 1):
+        for i_seg in range(len(sorted_rim_2d) - 1):
+            n1 = skirt_rings[k][i_seg]
+            n2 = skirt_rings[k][i_seg + 1]
+            n3 = skirt_rings[k + 1][i_seg + 1]
+            n4 = skirt_rings[k + 1][i_seg]
+            deck.add_shell(elem_id, 4, [n1, n2, n3, n4])
+            elem_id += 1
+
     total_punch_shells = len(deck.shells_by_part[4])
-    print(f"Generated rigid quarter punch with {len(punch_nodes)} nodes and {total_punch_shells} shells.")
+    print(f"Generated rigid quarter punch with {len(punch_nodes)} nodes and {total_punch_shells} shells (including cylindrical skirt).")
     print(f"Total shells across model: {sum(len(s) for s in deck.shells_by_part.values())}")
 
     # 6. Part Definitions
@@ -308,19 +334,19 @@ PUNCH_RIGID_SHELL_PROP
     )
 
     # 8. Traction-Separation Functions for Cohesive Delamination
-    # Mode I Normal: Peak 60 MPa, G_Ic = 280 J/m² (0.280 N/mm) -> delta_n_f = 0.009333 mm
+    # Mode I Normal: Peak 50 MPa, G_Ic = 350 J/m² (0.350 N/mm) -> delta_n_f = 0.014000 mm
     deck.functions.append(
 """/FUNCT/101
 NORMAL_TRACTION_SEPARATION
-                 0.0                60.0
-            0.009333                 0.0"""
+                 0.0                50.0
+            0.014000                 0.0"""
     )
-    # Mode II Shear: Peak 90 MPa, G_IIc = 800 J/m² (0.800 N/mm) -> delta_t_f = 0.017778 mm
+    # Mode II Shear: Peak 65 MPa, G_IIc = 1200 J/m² (1.200 N/mm) -> delta_t_f = 0.036923 mm
     deck.functions.append(
 """/FUNCT/102
 SHEAR_TRACTION_SEPARATION
-                 0.0                90.0
-            0.017778                 0.0"""
+                 0.0                65.0
+            0.036923                 0.0"""
     )
 
     # 9. Materials Setup
@@ -339,10 +365,13 @@ CFRP_T700_TWILL
             0.000000            0.000000            0.000000
          0            0.000000
 /FAIL/HASHIN/1
-         2         1         1                 1.0
+         2         1         0                 1.0
           925.000000          925.000000          104.000000          559.000000          559.000000
           250.000000          104.000000          104.000000           65.000000           65.000000
-            0.000000            1.000000        1.00000E+30"""
+           65.000000            1.000000            1.000000        1.00000E+30
+/FAIL/TENSSTRAIN/1
+            0.014600            0.025000         0            0.000000            0.000000         1
+         1"""
     )
 
 
@@ -444,7 +473,7 @@ NODES_BOT_PLY_{p_idx+2}_BOT
 f"""/INTER/TYPE2/{coh_id}
 COH_BOT_INT_{p_idx+1}
 {coh_id:10d}{coh_id:10d}         0        20         0         0         2                    0.050000
-         1         0         0       101       102         1            0.009333            0.017778
+         1         0         0       101       102         1            0.014000            0.036923
             1.000000            0.000000            1.000000            0.000000            1.000000"""
         )
 
@@ -475,7 +504,7 @@ NODES_TOP_PLY_{p_idx+2}_BOT
 f"""/INTER/TYPE2/{coh_id}
 COH_TOP_INT_{p_idx+1}
 {coh_id:10d}{coh_id:10d}         0        20         0         0         2                    0.050000
-         1         0         0       101       102         1            0.009333            0.017778
+         1         0         0       101       102         1            0.014000            0.036923
             1.000000            0.000000            1.000000            0.000000            1.000000"""
         )
 
@@ -670,7 +699,7 @@ def generate_model_phase3():
     engine_path = models_dir / 'engine' / 'PUNCTURE_MESOFULL_0001.rad'
     deck.write_engine(
         engine_path,
-        t_stop=0.0500,
+        t_stop=0.0450,
         anim_dt=0.0005,
         th_dt=0.00002,
         dt_noda=4.8e-8,

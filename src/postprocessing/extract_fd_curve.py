@@ -127,18 +127,20 @@ if __name__ == '__main__':
     base_dir = Path(__file__).resolve().parents[2]
     target = sys.argv[1] if len(sys.argv) > 1 else "phase1"
     use_work = False
+    scale = 4.0
     if target.lower() == "phase2":
         t01_csv = base_dir / "results" / "phase2_mesoscale" / "PUNCTURE_MESOT01.csv"
         fd_out = base_dir / "results" / "phase2_mesoscale" / "simulation_fd.csv"
     elif target.lower() == "phase3":
         t01_csv = base_dir / "results" / "phase3_full_mesoscale" / "PUNCTURE_MESOFULLT01.csv"
         fd_out = base_dir / "results" / "phase3_full_mesoscale" / "simulation_fd.csv"
-        use_work = True
+        use_work = False
+        scale = 1.0
     else:
         t01_csv = base_dir / "results" / "phase1_homogenized" / "PUNCTURE_HOMOGT01.csv"
         fd_out = base_dir / "results" / "phase1_homogenized" / "simulation_fd.csv"
 
     if t01_csv.exists():
-        extract_fd(t01_csv, fd_out, use_work_force=use_work)
+        extract_fd(t01_csv, fd_out, scale_factor=scale, use_work_force=use_work)
     else:
         print(f"File not found: {t01_csv}")

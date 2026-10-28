@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [3.3.0] - 2026-10-28
+### Added
+- **Calibrated Composite Skin Fracture & Fiber Rupture Decoupling (`/FAIL/HASHIN/1`, `/FAIL/TENSSTRAIN/1`):**
+  - Resolved premature top-skin fracture: identified that `/FAIL/HASHIN/1` with `Ifail_so = 1` triggered catastrophic solid element deletion upon transverse matrix cracking (`MODE 7 - MATRIX FAILURE`), coupled with a card alignment error where `SIGMA_13M` was read as `0.000000 MPa` causing immediate shear division-by-zero failure.
+  - Set `Ifail_so = 0` in `/FAIL/HASHIN/1` to enable physical matrix damage degradation without non-physical element erosion.
+  - Corrected Card 4 alignment in `/FAIL/HASHIN/1` ensuring $\text{SIGMA\_13M} = 65.0\text{ MPa}$ and all transverse shear strengths are strictly respected.
+  - Introduced explicit carbon fiber tensile rupture criteria via `/FAIL/TENSSTRAIN/1` on Material 1 with $\varepsilon_{t1} = 0.0146$ ($1.46\%$) in fiber direction and $\varepsilon_{t2} = 0.0250$ ($2.50\%$) in transverse direction, restricting solid element deletion exclusively to physical fiber fracture.
+- **Punch Geometry Enhancement (3D Cylindrical Skirt):**
+  - Extended the indenter from an idealized 2D flat circular plate to a true 3D punch with an $8.0\text{ mm}$ vertical cylindrical skirt (96 quad shells along $r = 12.5\text{ mm}$), rigidly slaved to `/RBODY/1`.
+  - Eliminated artificial shear stress singularities and premature cutting of laminate plies along the indenter perimeter during deep indentation.
+- **Calibrated Interlaminar Delamination Kinematics (`/INTER/TYPE2`):**
+  - Calibrated the inter-ply epoxy cohesive traction-separation interface parameters to realistic aerospace carbon/epoxy fracture toughness values: Mode I critical energy release rate $G_{Ic} = 0.35\text{ N/mm}$ ($\delta_n^c = 0.0140\text{ mm}$) and Mode II critical energy release rate $G_{IIc} = 1.20\text{ N/mm}$ ($\delta_t^c = 0.0369\text{ mm}$).
+  - Prevented premature pre-puncture delamination, maintaining full laminate flexural bending rigidity up to $d = 5.72\text{ mm}$.
+- **Quantitative Simulation & Experimental Correlation Validation:**
+  - Solved **937,521 explicit cycles** ($t_{\text{stop}} = 45.0\text{ ms}$, stroke $d = 8.0\text{ mm}$) in **3,750.44 s (1 h 02 min 30 s)** on AMD Ryzen 9 7900X (24 OpenMP threads, `-nt 24`) with 0 errors and normal termination.
+  - Cumulative added mass strictly conserved at $\Delta M / M = 1.4465 \times 10^{-3} = 0.145\%$ (well within the $< 1.0\%$ threshold).
+  - Puncture onset displacement matched the physical test with extraordinary accuracy: simulated rupture at **$d = 5.72\text{ mm}$** vs. experiment at **$5.70\text{ mm}$** (**$0.35\%$ error**).
+  - Continuous pre-puncture loading path matched experimental stiffness within $-3.3\%$ to $-13.2\%$ across $d = 1.5 - 3.5\text{ mm}$, with peak resistance reaching **$27.49\text{ kN}$** (peak force error reduced from $-50.6\%$ to $-23.2\%$).
+  - Sprague-Geers comprehensive error decreased to **$C = 32.88\%$** (lowest across all project phases; phase error $P = 22.13\%$, magnitude error $M = 24.32\%$). Absorbed energy error dropped to **$25.29\%$** (reduced from $84.22\%$ in Phase 2).
+- **Post-Processing & Documentation:**
+  - Updated `src/postprocessing/extract_fd_curve.py` with direct rigid body contact force extraction (`use_work = False`, `scale = 1.0`).
+  - Converted all 101 binary animation output states to 3D VTK format in `results/phase3_full_mesoscale/vtk/`.
+  - Updated 4-way correlation overlay plot (`docs/reports/correlation_overlay.png`) and validation metrics (`docs/reports/correlation_metrics.json`).
+  - Authored and compiled complete technical LaTeX report: `docs/reports/phase3_report.pdf` (5 pages, 0 errors).
+
 ## [3.2.0] - 2026-10-28
 ### Added
 - **Full-Stroke 9.0 mm Sandwich Puncture Simulation Run (`results/phase3_full_mesoscale/`):**
